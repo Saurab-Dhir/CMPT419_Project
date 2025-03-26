@@ -1,8 +1,6 @@
 import requests
-import json
 import base64
-import os
-from typing import BinaryIO, Dict, Any, Optional
+from typing import BinaryIO, Any, Optional
 from app.core.config import settings
 from app.models.audio import AudioTranscription
 
@@ -11,10 +9,10 @@ class STTService:
     
     def __init__(self):
         self.api_key = settings.LLM_API_KEY  # Using Gemini API key
-        self.base_url = "https://generativelanguage.googleapis.com/v1/models"
-        self.model = "gemini-pro-vision"  # Using vision model for audio transcription
+        self.base_url = "https://generativelanguage.googleapis.com/v1beta/models"
+        self.model = "gemini-2.0-flash"
     
-    async def transcribe(self, audio_file: BinaryIO) -> AudioTranscription:
+    async def transcribe(self, audio_file: BinaryIO, mime_type: str, response_id: Optional[str] = None) -> AudioTranscription:
         """
         Transcribe speech from audio file using Gemini.
         
@@ -24,35 +22,29 @@ class STTService:
         Returns:
             AudioTranscription with the transcribed text and confidence
         """
+        if response_id:
+            print(f"Received STT request <{response_id}>")
+
         if not self.api_key:
-            # Fallback to mock implementation if no API key is provided
             return await self._mock_transcribe()
         
         try:
             # Reset file pointer to beginning
             audio_file.seek(0)
-            
-            # Read the audio data and encode it
             audio_data = audio_file.read()
             audio_base64 = base64.b64encode(audio_data).decode('utf-8')
             
-            # Construct the precise prompt for accurate transcription
             prompt = "REPLY WITH NOTHING ELSE BUT WHAT THIS AUDIO SAYS WORD BY WORD NOTHING LESS NOTHING MORE"
-            
-            # Construct the API endpoint URL
             url = f"{self.base_url}/{self.model}:generateContent?key={self.api_key}"
             
-            # Prepare the request data
             data = {
                 "contents": [
                     {
                         "parts": [
-                            {
-                                "text": prompt
-                            },
+                            { "text": prompt },
                             {
                                 "inline_data": {
-                                    "mime_type": "audio/wav",  # Adjust if using different format
+                                    "mime_type": mime_type,
                                     "data": audio_base64
                                 }
                             }
@@ -65,14 +57,12 @@ class STTService:
                 }
             }
             
-            # Make API request
             response = requests.post(
                 url,
                 json=data,
                 headers={"Content-Type": "application/json"}
             )
             
-            # Check for successful response
             response.raise_for_status()
             result = response.json()
             
@@ -80,10 +70,9 @@ class STTService:
             if "candidates" in result and len(result["candidates"]) > 0:
                 transcribed_text = result["candidates"][0]["content"]["parts"][0]["text"]
                 transcribed_text = transcribed_text.strip()
-                
+                       
                 print(f"Gemini Transcription: {transcribed_text}")
                 
-                # Create AudioTranscription from result
                 return AudioTranscription(
                     text=transcribed_text,
                     confidence=0.95,  # Gemini doesn't provide confidence score
