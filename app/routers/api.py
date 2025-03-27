@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from app.core.config import settings
-from app.routers import audio, tts, response
+from app.routers import audio, tts, response, llm_to_tts
 
 # Create the main API router
 api_router = APIRouter()
@@ -9,6 +9,7 @@ api_router = APIRouter()
 api_router.include_router(audio.router, prefix="/audio", tags=["Audio Processing"])
 api_router.include_router(tts.router, prefix="/tts", tags=["Text-to-Speech"])
 api_router.include_router(response.router, prefix="/response", tags=["Response Generation"])
+api_router.include_router(llm_to_tts.router, prefix="/llm-to-tts", tags=["LLM to TTS Workflow"])
 
 # Create empty stubs for visual/facial processing
 @api_router.get("/visual/status")

@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     
     # LLM settings - using Gemini
     LLM_API_KEY: str = Field(default="")
-    LLM_MODEL: str = Field(default="gemini-pro")  # Using Gemini Pro
+    LLM_MODEL: str = Field(default="gemini-2.0-flash")  # Using Gemini Pro
     
     # ElevenLabs API settings for TTS
     ELEVENLABS_API_KEY: str = Field(default="")

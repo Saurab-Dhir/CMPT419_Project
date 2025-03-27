@@ -12,14 +12,18 @@ async def process_audio(
     duration: float = Form(...),
 ):
     """
-    Process an audio file to extract features, transcribe speech, and predict emotions.
+    Process an audio file for transcription and emotion classification.
+    
+    This endpoint initiates two parallel processes:
+    1. Sends the audio to Gemini API for speech-to-text transcription
+    2. Logs the audio for emotion classification (classifier in development)
     
     Args:
         audio: The audio file (supported formats: WAV, MP3, FLAC)
         duration: Duration of the audio in seconds
         
     Returns:
-        Processed audio data with features, transcription, and emotion prediction
+        Processed audio data with transcription and placeholder for emotion analysis
     """
     # Validate file type
     if audio.content_type not in ["audio/wav", "audio/mpeg", "audio/flac", "audio/mp3"]:
@@ -30,21 +34,24 @@ async def process_audio(
     
     try:
         # Process the audio using the audio service
+        # This will:
+        # 1. Log the audio for the classifier (currently in development)
+        # 2. Send the audio to Gemini for transcription
+        print(f"Processing audio file: {audio.filename} (duration: {duration}s)")
         result = await audio_service.process_audio(audio.file, duration)
         return result
     except Exception as e:
-        # Log the error in a real application
+        # Log the error
+        print(f"Error processing audio: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing audio: {str(e)}")
 
 @router.get("/status")
 async def audio_status():
     """Get the status of the audio processing service."""
-    # In a real implementation, this would check if all required services are available
     return {
         "status": "operational",
         "services": {
-            "feature_extraction": True,
-            "speech_to_text": True,
-            "emotion_detection": True
+            "speech_to_text": "active - using Gemini API",
+            "emotion_classification": "in development"
         }
     } 

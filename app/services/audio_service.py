@@ -19,11 +19,11 @@ class AudioService:
         Returns:
             AudioProcessingResult with extracted features and analysis
         """
-        # Extract audio features (mock implementation)
-        features = await self._extract_features(audio_file)
-        
         # Create a unique ID for this processing result
         processing_id = f"audio_{uuid.uuid4().hex[:10]}"
+        
+        # Log that we received audio for classification
+        print("Audio was received by classifier")
         
         # Transcribe speech using our STT service
         transcription = await stt_service.transcribe(audio_file)
@@ -32,12 +32,24 @@ class AudioService:
         response_logger.log_transcription(
             audio_id=processing_id,
             text=transcription.text,
-            confidence=transcription.confidence,
             metadata={"language": transcription.language, "duration": duration}
         )
         
-        # Predict emotions from audio features and transcription
-        emotion_prediction = await self._predict_emotion(features, transcription)
+        # Create simple feature placeholder (to maintain structure)
+        features = AudioFeatures(
+            volume=0.0,
+            pitch=0.0,
+            speaking_rate=0.0,
+            pauses=0,
+            tonal_variation=0.0
+        )
+        
+        # Create simple emotion prediction placeholder (to maintain structure)
+        emotion_prediction = AudioEmotionPrediction(
+            emotion="pending",
+            confidence=0.0,
+            secondary_emotions={}
+        )
         
         # Return the complete processing result
         return AudioProcessingResult(
@@ -47,29 +59,6 @@ class AudioService:
             features=features,
             transcription=transcription,
             emotion_prediction=emotion_prediction
-        )
-    
-    async def _extract_features(self, audio_file: BinaryIO) -> AudioFeatures:
-        """Extract audio features from the audio file."""
-        # Mock implementation - in a real system, this would analyze the audio
-        return AudioFeatures(
-            volume=0.75,
-            pitch=220.0,
-            speaking_rate=150.0,
-            pauses=3,
-            tonal_variation=0.6
-        )
-    
-    async def _predict_emotion(self, features: AudioFeatures, transcription: AudioTranscription) -> AudioEmotionPrediction:
-        """Predict emotions from audio features and transcription."""
-        # Mock implementation - in a real system, this would use an emotion classification model
-        return AudioEmotionPrediction(
-            emotion="anxiety",
-            confidence=0.85,
-            secondary_emotions={
-                "nervousness": 0.75,
-                "fear": 0.45
-            }
         )
 
 # Create a singleton instance
