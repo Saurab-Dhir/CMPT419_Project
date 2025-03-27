@@ -1,83 +1,89 @@
+import os
 import librosa
+import torch
 import numpy as np
-
-import librosa.effects
 import random
+from torch.utils.data import Dataset
+from transformers import Wav2Vec2Processor, Wav2Vec2Model
 
-def augment_audio(y, sr):
-    if random.random() < 0.5:
-        y = librosa.effects.time_stretch(y, rate=random.uniform(0.9, 1.1))
-    if random.random() < 0.5:
-        y = librosa.effects.pitch_shift(y=y, sr=sr, n_steps=random.uniform(-1, 1))
-    return y
+class Wav2Vec2FeatureExtractor:
+    """
+    A wrapper around a Hugging Face wav2vec2 model,
+    so we can easily extract a fixed embedding vector for each audio clip.
+    """
+    def __init__(self, model_name="facebook/wav2vec2-large-960h-lv60", device="cpu"):
+        # Processor normalizes and tokenizes the raw audio
+        self.processor = Wav2Vec2Processor.from_pretrained(model_name)
+        # The actual model that outputs hidden states
+        self.model = Wav2Vec2Model.from_pretrained(model_name).eval().to(device)
+        self.sr = 16000
+        self.device = device
 
+    def extract_embedding(self, audio_path):
+        """
+        1) Load raw audio
+        2) pitch/time augment
+        3) Tokenize with Wav2Vec2Processor
+        4) Forward pass through Wav2Vec2Model
+        5) Return an embedding vector 
+        """
+        # 1) Load raw audio at 16k
+        waveform, _ = librosa.load(audio_path, sr=self.sr)
 
+        # 2) Augmentation
+        if random.random() < 0.5:
+            waveform = librosa.effects.time_stretch(waveform, rate=random.uniform(0.9, 1.1))
+        if random.random() < 0.5:
+            waveform = librosa.effects.pitch_shift(waveform, sr=self.sr, n_steps=random.uniform(-2, 2))
 
-# def extract_features(file_path, sr=16000, max_len=5):
-#     """
-#     Extract audio features from a file: MFCC, pitch, energy and combine them all as a feature vector
-#     """
-#     y, _ = librosa.load(file_path, sr=sr, duration=max_len)
-#     y = augment_audio(y, sr)
+        # 3) Tokenize, requesting attention_mask if supported
+        inputs = self.processor(
+            waveform,
+            sampling_rate=self.sr,
+            return_tensors="pt",
+            padding=True,
+            return_attention_mask=True  # ask for attention_mask
+        )
+        input_values = inputs["input_values"].to(self.device)
 
+        # Fallback if the processor doesn't return mask
+        attention_mask = inputs.get("attention_mask", None)
+        if attention_mask is not None:
+            attention_mask = attention_mask.to(self.device)
 
-#     # Core features
-#     mfcc = librosa.feature.mfcc(y=y, sr=sr, n_mfcc=13).T
-#     chroma = librosa.feature.chroma_stft(y=y, sr=sr).T
-#     spec_centroid = librosa.feature.spectral_centroid(y=y, sr=sr).T
-#     spec_bandwidth = librosa.feature.spectral_bandwidth(y=y, sr=sr).T
-#     spec_contrast = librosa.feature.spectral_contrast(y=y, sr=sr).T
-#     spec_rolloff = librosa.feature.spectral_rolloff(y=y, sr=sr).T
-#     zcr = librosa.feature.zero_crossing_rate(y=y).T
+        # 4) Forward pass
+        with torch.no_grad():
+            if attention_mask is not None:
+                outputs = self.model(input_values, attention_mask=attention_mask)
+            else:
+                outputs = self.model(input_values)
+            hidden_states = outputs.last_hidden_state  # shape [1, T, hidden_dim]
 
-#     # Pitch & energy stats
-#     pitch = librosa.yin(y, fmin=50, fmax=500)
-#     pitch_mean = np.mean(pitch)
-#     pitch_std = np.std(pitch)
-#     energy = np.mean(librosa.feature.rms(y=y))
-
-#     time_steps = mfcc.shape[0]
-
-#     # Align time steps (clip or pad others)
-#     def pad_or_truncate(arr, t):
-#         if arr.shape[0] > t:
-#             return arr[:t]
-#         elif arr.shape[0] < t:
-#             pad = np.zeros((t - arr.shape[0], arr.shape[1]))
-#             return np.vstack([arr, pad])
-#         return arr
-
-#     # Match all to MFCC time length
-#     chroma = pad_or_truncate(chroma, time_steps)
-#     spec_centroid = pad_or_truncate(spec_centroid, time_steps)
-#     spec_bandwidth = pad_or_truncate(spec_bandwidth, time_steps)
-#     spec_contrast = pad_or_truncate(spec_contrast, time_steps)
-#     spec_rolloff = pad_or_truncate(spec_rolloff, time_steps)
-#     zcr = pad_or_truncate(zcr, time_steps)
-
-#     extra_features = np.tile([pitch_mean, pitch_std, energy], (time_steps, 1))  # (time_steps, 3)
-
-#     features = np.hstack([
-#         mfcc,
-#         chroma,
-#         spec_centroid,
-#         spec_bandwidth,
-#         spec_contrast,
-#         spec_rolloff,
-#         zcr,
-#         extra_features
-#     ])
-
-#     return features  # shape: (time_steps, total_feature_dim)
+        # 5) Mean-pool => shape [hidden_dim]
+        embedding = hidden_states.mean(dim=1).squeeze()
+        return embedding.cpu().numpy()
 
 
+class Wav2Vec2Dataset(Dataset):
+    """precomputed wav2vec2 embeddings and numeric labels """
+    def __init__(self, embedding_list, label_list):
+        self.embedding_list = embedding_list  # list of 1D arrays
+        self.label_list = label_list
 
+    def __len__(self):
+        return len(self.embedding_list)
 
-def extract_features(file_path, sr=16000, max_len=5, n_mels=64):
-    y, _ = librosa.load(file_path, sr=sr, duration=max_len)
-    y = augment_audio(y, sr)
+    def __getitem__(self, idx):
+        x = self.embedding_list[idx]
+        y = self.label_list[idx]
+        return x, y
 
-    mel_spec = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=n_mels)
-    mel_spec_db = librosa.power_to_db(mel_spec, ref=np.max).T  # shape: (time_steps, n_mels)
-
-    return mel_spec_db
+def collate_fn_wav2vec2(batch):
+    """
+    For a list of embedding - label pair, stack embeddings into [batch_size, embedding_dim]
+    Return (tensor_embeddings, tensor_labels)
+    """
+    xs, ys = zip(*batch)
+    xs = torch.tensor(np.stack(xs), dtype=torch.float32)
+    ys = torch.tensor(ys, dtype=torch.long)
+    return xs, ys
