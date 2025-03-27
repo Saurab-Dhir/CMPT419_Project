@@ -54,7 +54,8 @@ async def generate_response(request: ResponseRequest):
         generated_response = GeneratedResponse(
             text=response_text,
             emotion_addressed=request.emotion,
-            response_type="validation_with_reframe"  # Default type
+            response_type="validation_with_reframe",  # Default type
+            confidence=0.9  # Mock confidence value
         )
         
         # Generate audio if requested
@@ -72,6 +73,7 @@ async def generate_response(request: ResponseRequest):
             # Create a simple emotion analysis based on the provided emotion
             emotion_analysis = CombinedEmotionAnalysis(
                 overall_emotion=request.emotion or "unknown",
+                confidence=0.8,
                 emotion_intensity=0.7,
                 emotion_valence=-0.5 if request.emotion in ["anxiety", "sadness", "anger", "fear"] else 0.5,
                 emotion_arousal=0.8 if request.emotion in ["anxiety", "anger", "joy"] else 0.3
@@ -142,7 +144,8 @@ async def audio_to_response_pipeline(
         generated_response = GeneratedResponse(
             text=response_text,
             emotion_addressed="unspecified",
-            response_type="empathetic_response"
+            response_type="empathetic_response",
+            confidence=0.9
         )
         
         # Step 3: Generate audio response if requested
@@ -158,6 +161,7 @@ async def audio_to_response_pipeline(
         # Create a basic emotion analysis
         emotion_analysis = CombinedEmotionAnalysis(
             overall_emotion="unspecified",
+            confidence=0.8,
             emotion_intensity=0.5,
             emotion_valence=0.0,
             emotion_arousal=0.5

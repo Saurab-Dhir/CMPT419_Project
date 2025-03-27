@@ -44,7 +44,7 @@ class ElevenLabsService:
             # Get the voice ID to use (default or specified)
             voice_id = voice_id or settings.TTS_VOICE or "21m00Tcm4TlvDq8ikWAM"  # Default to ElevenLabs "Rachel" voice
             
-            # Prepare the request data, Note to future self: We need to add more information here to make each response unique
+            # Prepare the request data, Note to future self: We need to add more information here to make each 
             data = {
                 "text": text,
                 "model_id": "eleven_monolingual_v1",
