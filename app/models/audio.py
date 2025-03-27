@@ -19,7 +19,6 @@ class AudioEmotionPrediction(BaseModel):
 class AudioTranscription(BaseModel):
     """Model for speech-to-text transcription."""
     text: str = Field(..., description="Transcribed text")
-    confidence: float = Field(..., description="Overall transcription confidence")
     language: str = Field(default="en", description="Detected language")
     
 class AudioProcessingResult(BaseModel):
@@ -46,7 +45,6 @@ class AudioProcessingResult(BaseModel):
                 },
                 "transcription": {
                     "text": "I feel a bit stressed about my upcoming presentation.",
-                    "confidence": 0.92,
                     "language": "en"
                 },
                 "emotion_prediction": {
