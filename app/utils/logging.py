@@ -16,7 +16,7 @@ class ResponseLogger:
         for directory in [self.logs_dir, self.transcriptions_dir, self.responses_dir, self.audio_output_dir]:
             os.makedirs(directory, exist_ok=True)
     
-    def log_transcription(self, audio_id: str, text: str, confidence: float, metadata: dict = None):
+    def log_transcription(self, audio_id: str, text: str, metadata: dict = None):
         """Log a transcription result to a file."""
         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{timestamp}_{audio_id}_transcription.json"
@@ -25,8 +25,7 @@ class ResponseLogger:
         data = {
             "audio_id": audio_id,
             "timestamp": timestamp,
-            "text": text,
-            "confidence": confidence
+            "text": text
         }
         
         if metadata:
@@ -37,7 +36,6 @@ class ResponseLogger:
         
         print(f"\n===== TRANSCRIPTION [{audio_id}] =====")
         print(f"Text: {text}")
-        print(f"Confidence: {confidence}")
         print("====================================\n")
         
         return filepath
