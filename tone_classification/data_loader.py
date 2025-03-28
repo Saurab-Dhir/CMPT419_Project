@@ -11,7 +11,8 @@ class Wav2Vec2FeatureExtractor:
     A wrapper around a Hugging Face wav2vec2 model,
     so we can easily extract a fixed embedding vector for each audio clip.
     """
-    def __init__(self, model_name="facebook/wav2vec2-large-960h-lv60", device="cpu"):
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    def __init__(self, model_name="facebook/wav2vec2-large-960h-lv60", device=device):
         # Processor normalizes and tokenizes the raw audio
         self.processor = Wav2Vec2Processor.from_pretrained(model_name)
         # The actual model that outputs hidden states

@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Optional, Dict, Any, BinaryIO
 from app.models.audio import AudioFeatures, AudioEmotionPrediction, AudioTranscription, AudioProcessingResult
 from app.services.stt_service import stt_service
+from app.services.tone_service import tone_service
 from app.utils.logging import response_logger
 
 class AudioService:
@@ -44,12 +45,11 @@ class AudioService:
             tonal_variation=0.0
         )
         
-        # Create simple emotion prediction placeholder (to maintain structure)
-        emotion_prediction = AudioEmotionPrediction(
-            emotion="pending",
-            confidence=0.0,
-            secondary_emotions={}
-        )
+        # Extract tone
+        audio_file.seek(0)
+        audio_bytes = audio_file.read()
+        emotion_prediction = tone_service.predict_emotion(audio_bytes)
+
         
         # Return the complete processing result
         return AudioProcessingResult(
