@@ -1,8 +1,6 @@
 import requests
-import json
 import base64
-import os
-from typing import BinaryIO, Dict, Any, Optional
+from typing import BinaryIO, Any, Optional
 from app.core.config import settings
 from app.models.audio import AudioTranscription
 
@@ -14,7 +12,7 @@ class STTService:
         self.base_url = "https://generativelanguage.googleapis.com/v1/models"
         self.model = "gemini-2.0-flash-lite"  # Using flash lite model for faster audio transcription
     
-    async def transcribe(self, audio_file: BinaryIO) -> AudioTranscription:
+    async def transcribe(self, audio_file: BinaryIO, mime_type: str, response_id: Optional[str] = None) -> AudioTranscription:
         """
         Transcribe speech from audio file using Gemini.
         
@@ -24,49 +22,29 @@ class STTService:
         Returns:
             AudioTranscription with the transcribed text and confidence
         """
+        if response_id:
+            print(f"Received STT request <{response_id}>")
+
         if not self.api_key:
-            # Fallback to mock implementation if no API key is provided
             return await self._mock_transcribe()
         
         try:
             # Reset file pointer to beginning
             audio_file.seek(0)
-            
-            # Read the audio data and encode it
             audio_data = audio_file.read()
             audio_base64 = base64.b64encode(audio_data).decode('utf-8')
             
-            # Construct a detailed prompt for accurate transcription
-            prompt = """What does this audio say? 
-
-Your task is to transcribe the spoken content in this audio file with complete accuracy.
-
-INSTRUCTIONS:
-1. Transcribe EXACTLY what is spoken, word for word.
-2. Include all filler words (um, uh, like, you know, etc.).
-3. Format as plain text only.
-4. Do not add any commentary, descriptions, or explanations.
-5. Do not add timestamps or speaker identifications.
-6. Do not include any text before or after the transcription.
-7. Preserve natural pauses with commas and periods.
-8. If parts are unclear, make your best guess.
-
-REPLY WITH THE TRANSCRIPTION ONLY."""
-            
-            # Construct the API endpoint URL
+            prompt = "REPLY WITH NOTHING ELSE BUT WHAT THIS AUDIO SAYS WORD BY WORD NOTHING LESS NOTHING MORE"
             url = f"{self.base_url}/{self.model}:generateContent?key={self.api_key}"
             
-            # Prepare the request data
             data = {
                 "contents": [
                     {
                         "parts": [
-                            {
-                                "text": prompt
-                            },
+                            { "text": prompt },
                             {
                                 "inline_data": {
-                                    "mime_type": "audio/wav",  # Adjust if using different format
+                                    "mime_type": mime_type,
                                     "data": audio_base64
                                 }
                             }
@@ -81,15 +59,12 @@ REPLY WITH THE TRANSCRIPTION ONLY."""
                 }
             }
             
-            # Make API request
-            print("Sending audio to Gemini for transcription...")
             response = requests.post(
                 url,
                 json=data,
                 headers={"Content-Type": "application/json"}
             )
             
-            # Check for successful response
             response.raise_for_status()
             result = response.json()
             
@@ -97,10 +72,9 @@ REPLY WITH THE TRANSCRIPTION ONLY."""
             if "candidates" in result and len(result["candidates"]) > 0:
                 transcribed_text = result["candidates"][0]["content"]["parts"][0]["text"]
                 transcribed_text = transcribed_text.strip()
+                       
+                print(f"Gemini Transcription: {transcribed_text}")
                 
-                print(f"Gemini Transcription successful. Length: {len(transcribed_text)} characters")
-                
-                # Create AudioTranscription from result
                 return AudioTranscription(
                     text=transcribed_text,
                     language="en"
