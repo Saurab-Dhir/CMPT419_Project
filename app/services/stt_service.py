@@ -34,7 +34,7 @@ class STTService:
             audio_data = audio_file.read()
             audio_base64 = base64.b64encode(audio_data).decode('utf-8')
             
-            prompt = "REPLY WITH NOTHING ELSE BUT WHAT THIS AUDIO SAYS WORD BY WORD NOTHING LESS NOTHING MORE"
+            prompt = "REPLY WITH NOTHING ELSE BUT WHAT THIS AUDIO SAYS WORD BY WORD NOTHING LESS NOTHING MORE, BE ACCURATE AND EXACT TO THE LETTER, DO NOT ADD ANYTHING ELSE, DO NOT SAY ANYTHING ELSE, JUST REPLY WITH THE TEXT OF THE AUDIO"
             url = f"{self.base_url}/{self.model}:generateContent?key={self.api_key}"
             
             data = {

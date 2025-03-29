@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from app.core.config import settings
-from app.routers import audio, tts, response, stt
+from app.routers import audio, tts, response, llm_to_tts, stt
 
 # Create the main API router
 api_router = APIRouter()
