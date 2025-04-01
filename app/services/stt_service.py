@@ -1,237 +1,48 @@
-import base64
-import json
-import logging
-import re
-import time
-import os
-import copy
-from typing import Optional, Dict, Any, Union
-import io
-import asyncio
 import requests
-
-# Define global variable for availability
-GENAI_AVAILABLE = False
-
-# Try to import Google GenAI library, but gracefully handle if it's not available
-try:
-    from google import genai
-    from google.genai import types
-    GENAI_AVAILABLE = True
-    print("✅ Google GenAI library imported successfully")
-except ImportError as e:
-    print(f"⚠️ Google GenAI library not available: {str(e)}. Using fallback HTTP requests.")
+import base64
+from typing import BinaryIO, Any, Optional
+from app.core.config import settings
+from app.models.audio import AudioTranscription
 
 class STTService:
     def __init__(self):
-        self.api_key = "AIzaSyBgmTHFDl8IPSboKymLcZA4mXdl0USs9Fk"
-        if not self.api_key:
-            print("⚠️ LLM_API_KEY not set. Audio transcription will not work.")
-            self.client = None
-        else:
-            if GENAI_AVAILABLE:
-                # Initialize the Google Gen AI client
-                try:
-                    self.client = genai.Client(api_key=self.api_key)
-                    print("✅ Google Gen AI client initialized")
-                except Exception as e:
-                    print(f"⚠️ Failed to initialize Google GenAI client: {str(e)}")
-                    self.client = None
-                    # We can't modify global variables from here
-                    # Let's just handle this with a local fallback
-            else:
-                self.client = None
+        self.api_key = settings.LLM_API_KEY  # Using Gemini API key
+        self.base_url = "https://generativelanguage.googleapis.com/v1/models"
+        self.model = "gemini-2.0-flash-lite"  # Using flash lite model for faster audio transcription
+    
+    async def transcribe(self, audio_file: BinaryIO, mime_type: str, response_id: Optional[str] = None) -> AudioTranscription:
+        """
+        Transcribe speech from audio file using Gemini.
         
-        # Use the latest recommended model
-        self.model_name = "gemini-2.0-flash-lite"
-        print(f"🎯 Using model: {self.model_name} for audio transcription")
-        
-    async def transcribe_audio(self, audio_file: Any) -> Dict[str, Any]:
-        # Check if we have an API key
-        if not self.api_key:
-            print("⚠️ No LLM API Key available.")
-            return {"transcription": "", "emotion": "neutral"}
+        Args:
+            audio_file: The audio file to transcribe
             
-        # Get audio data and format
+        Returns:
+            AudioTranscription with the transcribed text and confidence
+        """
+        if response_id:
+            print(f"Received STT request <{response_id}>")
+
+        if not self.api_key:
+            return await self._mock_transcribe()
+        
         try:
-            # Handle different types of audio file inputs:
-            # 1. Bytes object
-            # 2. BytesIO object
-            # 3. File-like objects (including SpooledTemporaryFile)
-            
-            if isinstance(audio_file, bytes):
-                audio_data = audio_file
-                content_type = "audio/wav"  # Default if not specified
-            elif hasattr(audio_file, 'getvalue'):
-                # For BytesIO objects
-                audio_data = audio_file.getvalue()
-                content_type = getattr(audio_file, 'content_type', "audio/wav")
-            elif hasattr(audio_file, 'read'):
-                # For file-like objects including SpooledTemporaryFile
-                # Save the current position
-                try:
-                    curr_pos = audio_file.tell()
-                    # Go to the beginning of the file
-                    audio_file.seek(0)
-                    # Read the file
-                    audio_data = audio_file.read()
-                    # Restore the position
-                    audio_file.seek(curr_pos)
-                except Exception as e:
-                    # If seeking fails, just read the data
-                    try:
-                        audio_data = audio_file.read()
-                    except:
-                        audio_file.file.seek(0)
-                        audio_data = audio_file.file.read()
-                
-                # Try to get content type
-                content_type = getattr(audio_file, 'content_type', None)
-                if not content_type:
-                    # Check if it has a filename attribute to guess content type
-                    if hasattr(audio_file, 'filename'):
-                        if audio_file.filename.endswith('.wav'):
-                            content_type = 'audio/wav'
-                        elif audio_file.filename.endswith('.mp3'):
-                            content_type = 'audio/mp3'
-                        elif audio_file.filename.endswith('.webm'):
-                            content_type = 'audio/webm'
-                        else:
-                            content_type = 'audio/wav'  # Default
-                    else:
-                        content_type = 'audio/wav'  # Default
-            else:
-                # Unknown type
-                return {"transcription": "", "emotion": "neutral", 
-                        "error": f"Unsupported audio file type: {type(audio_file)}"}
-                
-            print(f"🎤 Processing audio: {len(audio_data)/1024:.2f}KB, type: {content_type}")
-            
-            # Check if audio is empty
-            if not audio_data or len(audio_data) < 100:
-                print("⚠️ Audio data is empty or too small")
-                return {"transcription": "", "emotion": "neutral"}
-                
-            # Create a unique session ID for this request to avoid cached responses
-            session_id = f"{time.time()}_{hash(audio_data) % 10000}"
-            
-            # Standardize content type
-            if "webm" in content_type.lower():
-                content_type = "audio/webm"
-            elif "mp3" in content_type.lower():
-                content_type = "audio/mp3"
-            else:
-                content_type = "audio/wav"
-                
-            # Convert to base64
+            # Reset file pointer to beginning
+            audio_file.seek(0)
+            audio_data = audio_file.read()
             audio_base64 = base64.b64encode(audio_data).decode('utf-8')
             
-            # Check audio size and truncate if needed (Gemini has ~10MB limit)
-            max_size = 9 * 1024 * 1024  # 9MB to leave room for rest of request
-            if len(audio_data) > max_size:
-                print(f"⚠️ Audio too large ({len(audio_data)/1024/1024:.2f}MB), truncating")
-                truncated_size = int(max_size)
-                audio_data = audio_data[:truncated_size]
-                audio_base64 = base64.b64encode(audio_data).decode('utf-8')
-                
-            # Create prompt
-            prompt = f"""
-            You are an AI assistant that transcribes audio and detects emotions.
+            prompt = "REPLY WITH NOTHING ELSE BUT WHAT THIS AUDIO SAYS WORD BY WORD NOTHING LESS NOTHING MORE, BE ACCURATE AND EXACT TO THE LETTER, DO NOT ADD ANYTHING ELSE, DO NOT SAY ANYTHING ELSE, JUST REPLY WITH THE TEXT OF THE AUDIO"
+            url = f"{self.base_url}/{self.model}:generateContent?key={self.api_key}"
             
-            Session ID: {session_id}
-            
-            1. Listen to the audio file.
-            2. Transcribe the content accurately - exactly what is said, word for word.
-            3. Identify the emotions expressed in the speech.
-            
-            The provided audio is unique and should be processed as a new recording.
-            
-            Return only a JSON object with the following structure:
-            {{
-              "transcription": "the transcribed text",
-              "emotion": "the main emotion (happy, sad, angry, neutral, etc.)"
-            }}
-            """
-            
-            # Start timing the request
-            start_time = time.time()
-            raw_response = ""
-            
-            # Use Google GenAI SDK if available, otherwise fall back to HTTP requests
-            if GENAI_AVAILABLE and self.client:
-                try:
-                    # Prepare the parts for the API
-                    text_part = types.Part.from_text(prompt)
-                    audio_part = types.Part.from_data(
-                        mime_type=content_type,
-                        data=audio_data
-                    )
-                    
-                    # Create content
-                    content = types.Content(
-                        role="user",
-                        parts=[text_part, audio_part]
-                    )
-                    
-                    print(f"📤 Sending request to Gemini model: {self.model_name}")
-                    print(f"📤 Content type: {content_type}, Audio size: {len(audio_data)/1024:.2f}KB")
-                    
-                    # Use asyncio to run the blocking API call in a thread pool
-                    response = await asyncio.to_thread(
-                        self.client.models.generate_content,
-                        model=self.model_name,
-                        contents=content,
-                        generation_config=types.GenerateContentConfig(
-                            temperature=0.2,
-                            top_p=0.8,
-                            top_k=40,
-                            max_output_tokens=2048,
-                        )
-                    )
-                    
-                    # Extract the response text
-                    if not response:
-                        print("❌ Empty response from Gemini")
-                        return {"transcription": "", "emotion": "neutral"}
-                    
-                    # Get the raw text response
-                    raw_response = response.text
-                    
-                except Exception as e:
-                    print(f"❌ Error using Google GenAI SDK: {str(e)}")
-                    # Fall back to HTTP request method
-                    raw_response = await self._transcribe_with_http(prompt, content_type, audio_base64)
-            else:
-                # Fall back to HTTP requests
-                raw_response = await self._transcribe_with_http(prompt, content_type, audio_base64)
-            
-            processing_time = time.time() - start_time
-            print(f"⏱️ Gemini processing time: {processing_time:.2f} seconds")
-            print(f"📥 Response received from Gemini: {raw_response[:100]}...")
-            
-            # Process the raw response to extract JSON
-            return self._process_response(raw_response)
-            
-        except Exception as e:
-            error_msg = f"STT service error: {str(e)}"
-            print(f"❌ {error_msg}")
-            return {"transcription": "", "emotion": "neutral", "error": error_msg}
-    
-    async def _transcribe_with_http(self, prompt: str, content_type: str, audio_base64: str) -> str:
-        """Fallback method using direct HTTP requests when Google GenAI SDK is not available"""
-        try:
-            # Construct the API endpoint URL
-            url = f"https://generativelanguage.googleapis.com/v1/models/{self.model_name}:generateContent?key={self.api_key}"
-            
-            # Prepare request data
-            request_data = {
+            data = {
                 "contents": [
                     {
                         "parts": [
-                            {"text": prompt},
+                            { "text": prompt },
                             {
                                 "inline_data": {
-                                    "mime_type": content_type,
+                                    "mime_type": mime_type,
                                     "data": audio_base64
                                 }
                             }
@@ -246,30 +57,26 @@ class STTService:
                 }
             }
             
-            # Log request (without the audio data)
-            log_data = copy.deepcopy(request_data)
-            log_data["contents"][0]["parts"][1]["inline_data"]["data"] = f"[{len(audio_base64)} bytes]"
-            print(f"📤 Sending HTTP request to Gemini: {json.dumps(log_data, indent=2)}")
-            
-            # Send request
             response = requests.post(
                 url, 
                 json=request_data,
                 timeout=60  # Longer timeout for audio processing
             )
             
-            # Check if request was successful
-            if response.status_code != 200:
-                error_msg = f"Gemini API error: {response.status_code} - {response.text}"
-                print(f"❌ {error_msg}")
-                return ""
-            
-            # Parse response
+            response.raise_for_status()
             result = response.json()
             
             # Extract text from response
             if "candidates" in result and len(result["candidates"]) > 0:
-                return result["candidates"][0]["content"]["parts"][0]["text"]
+                transcribed_text = result["candidates"][0]["content"]["parts"][0]["text"]
+                transcribed_text = transcribed_text.strip()
+                       
+                print(f"Gemini Transcription: {transcribed_text}")
+                
+                return AudioTranscription(
+                    text=transcribed_text,
+                    language="en"
+                )
             else:
                 return ""
                 
