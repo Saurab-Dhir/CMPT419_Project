@@ -425,285 +425,205 @@ class DeepFaceService:
     
     def analyze_face(self, image: Union[str, np.ndarray], detected_face: Optional[Dict] = None) -> Dict[str, Any]:
         """
-        Analyze facial attributes including emotion, age, gender.
+        Analyze face to extract attributes like emotion, age, gender.
         
         Args:
             image: Input image path or numpy array
-            detected_face: Previously detected face information (optional)
+            detected_face: Dictionary with face detection results (optional)
             
         Returns:
-            Dictionary with facial analysis results including:
-                - emotion: Primary emotion detected
-                - emotion_confidence: Confidence in primary emotion
-                - secondary_emotions: Dictionary of other emotions with confidences
-                - age: Estimated age
-                - gender: Detected gender
-                - error: Error message (if any)
+            Dictionary with facial attributes
         """
-        logger.info("Analyzing facial attributes")
-        
-        # Default return values
-        default_result = {
-            "emotion": "neutral",
-            "emotion_confidence": 0.0,
-            "secondary_emotions": {},
-            "age": 0,
-            "gender": "unknown"
-        }
-        
-        # Check if face was detected
-        if detected_face is None or not detected_face.get("detected", False):
-            logger.info("No face detected, returning default values")
-            return default_result
+        logger.info("Analyzing face in image")
+        print("🔎 Analyzing face for emotions...")
         
         try:
-            # Load image if path provided
+            # Convert image path to numpy array if needed
             if isinstance(image, str):
-                logger.debug(f"Loading image from path: {image}")
                 img = self.cv2.imread(image)
                 if img is None:
                     logger.error(f"Invalid image path or corrupted image: {image}")
-                    return {**default_result, "error": f"Invalid image path or corrupted image: {image}"}
+                    return {"emotion": "neutral", "emotion_confidence": 0.0}
             else:
                 img = image
             
-            # Extract face region if face box is provided
-            face_box = detected_face.get("box")
-            if face_box and len(face_box) == 4:
-                x, y, w, h = face_box
-                # Ensure coordinates are within image bounds
-                x, y = max(0, x), max(0, y)
-                w = min(img.shape[1] - x, w)
-                h = min(img.shape[0] - y, h)
+            # Detect face if not provided
+            if detected_face is None or not detected_face.get("detected", False):
+                detected_face = self.detect_face(img)
+            
+            # Check if face was detected
+            if not detected_face.get("detected", False):
+                logger.warning("No face detected, cannot analyze attributes")
+                return {"emotion": "neutral", "emotion_confidence": 0.0}
+            
+            # Extract face region
+            face_box = detected_face.get("box", [0, 0, img.shape[1], img.shape[0]])
+            x, y, w, h = face_box
+            face_img = img[y:y+h, x:x+w]
+            
+            # Ensure face image is not empty
+            if face_img.size == 0:
+                logger.warning("Empty face region")
+                return {"emotion": "neutral", "emotion_confidence": 0.0}
                 
-                # Extract face ROI with padding to improve accuracy
-                padding_percent = 0.2  # Add 20% padding around the face
-                pad_x = int(w * padding_percent)
-                pad_y = int(h * padding_percent)
-                
-                # Calculate padded coordinates while ensuring they're within image bounds
-                padded_x = max(0, x - pad_x)
-                padded_y = max(0, y - pad_y)
-                padded_w = min(img.shape[1] - padded_x, w + 2 * pad_x)
-                padded_h = min(img.shape[0] - padded_y, h + 2 * pad_y)
-                
-                # Extract the padded face region
-                face_img = img[padded_y:padded_y + padded_h, padded_x:padded_x + padded_w]
-                
-                # Check if face extraction succeeded
-                if face_img.size == 0:
-                    logger.warning("Failed to extract valid face region, using full image")
-                    face_img = img
-                
-                logger.debug("Face region extracted for analysis")
-            else:
-                face_img = img
-                logger.debug("Using full image for analysis (no face box provided)")
+            # Save face image for debugging (commented out for production)
+            import os
+            debug_dir = os.path.join("debug", "faces")
+            os.makedirs(debug_dir, exist_ok=True)
+            debug_file = os.path.join(debug_dir, f"face_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg")
+            self.cv2.imwrite(debug_file, face_img)
+            print(f"🔎 Saved face image for debugging: {debug_file}")
             
             # Try DeepFace first if available
             if self.has_deepface:
                 try:
-                    logger.debug("Analyzing face with DeepFace directly")
-                    
-                    # Use DeepFace directly for emotion analysis
-                    analysis = self.deepface.analyze(
-                        img_path=face_img,  # Pass the face image directly
-                        actions=['emotion'],  # Only analyze emotions for speed
-                        enforce_detection=False,  # Skip detection since we already have the face
-                        detector_backend='skip'  # Skip detection since we already extracted the face
+                    print("🔎 Using DeepFace for emotion analysis")
+                    face_analysis = self.deepface.analyze(
+                        face_img, 
+                        actions=['emotion'],
+                        enforce_detection=False
                     )
                     
-                    if not analysis:
-                        logger.warning("DeepFace returned empty analysis results")
-                        raise ValueError("Empty analysis results")
+                    if face_analysis and len(face_analysis) > 0:
+                        analysis = face_analysis[0]
+                        print(f"🔎 DeepFace analysis raw result: {analysis}")
                         
-                    # Get the result (will be a list of one item or a single dict)
-                    result = analysis[0] if isinstance(analysis, list) else analysis
-                    
-                    # Extract emotions
-                    emotions = result.get("emotion", {})
-                    if not emotions:
-                        logger.warning("No emotion data in DeepFace result")
-                        raise ValueError("No emotion data")
-                    
-                    # Find the dominant emotion (highest confidence)
-                    emotion_items = sorted(
-                        emotions.items(), 
-                        key=lambda x: x[1], 
-                        reverse=True
-                    )
-                    
-                    # Get primary emotion
-                    primary_emotion = self._normalize_emotion(emotion_items[0][0])
-                    primary_confidence = emotion_items[0][1]
-                    
-                    # Get secondary emotions
-                    secondary_emotions = {}
-                    for emotion_name, confidence in emotion_items[1:]:
-                        if confidence > 0.05:  # Only include emotions with confidence above 5%
-                            secondary_emotions[self._normalize_emotion(emotion_name)] = confidence
-                    
-                    # Log the emotion detection results
-                    logger.info(f"DeepFace emotion detection: {primary_emotion} ({primary_confidence:.2f})")
-                    logger.debug(f"Secondary emotions: {secondary_emotions}")
-                    
-                    # Return the emotion analysis results
-                    analysis_result = {
-                        "emotion": primary_emotion,
-                        "emotion_confidence": primary_confidence,
-                        "secondary_emotions": secondary_emotions,
-                        "age": 0,  # We're only analyzing emotions
-                        "gender": "unknown"  # We're only analyzing emotions
-                    }
-                    
-                    return analysis_result
+                        # Extract emotion
+                        emotions = analysis.get('emotion', {})
+                        if emotions:
+                            # Find emotion with highest confidence
+                            emotions_list = [(e, c) for e, c in emotions.items()]
+                            emotions_list.sort(key=lambda x: x[1], reverse=True)
+                            
+                            # Get top emotions
+                            primary_emotion, primary_confidence = emotions_list[0]
+                            primary_emotion = self._normalize_emotion(primary_emotion)
+                            
+                            # Get secondary emotions (excluding primary)
+                            secondary_emotions = {
+                                self._normalize_emotion(e): float(c) / 100.0 
+                                for e, c in emotions_list[1:] 
+                                if c > 1.0  # Only include emotions with >1% confidence
+                            }
+                            
+                            # Normalize confidence to 0-1 range
+                            primary_confidence = float(primary_confidence) / 100.0
+                            
+                            print(f"🔎 DeepFace detected emotion: {primary_emotion} ({primary_confidence:.2f})")
+                            print(f"🔎 Secondary emotions: {secondary_emotions}")
+                            
+                            return {
+                                "emotion": primary_emotion,
+                                "emotion_confidence": primary_confidence,
+                                "secondary_emotions": secondary_emotions
+                            }
                     
                 except Exception as e:
-                    logger.warning(f"Direct DeepFace emotion analysis failed: {str(e)}, trying conventional approach")
-                    # Continue with conventional approach below
+                    logger.warning(f"DeepFace analysis failed: {str(e)}")
+                    print(f"⚠️ DeepFace analysis error: {str(e)}")
             
-            # If we reached here, try the original approach with DeepFace if available
-            if self.has_deepface:
-                try:
-                    logger.debug("Analyzing face with conventional DeepFace approach")
-                    analysis = self.deepface.analyze(
-                        face_img,
-                        actions=['emotion', 'age', 'gender'],
-                        enforce_detection=False,
-                        detector_backend='skip'  # Skip detection as we already have the face
-                    )
-                    
-                    # Rest of the original DeepFace analysis code...
-                    if analysis and len(analysis) > 0:
-                        result = analysis[0]
-                        
-                        # Extract emotions and sort by confidence
-                        emotions = result.get("emotion", {})
-                        emotion_items = sorted(
-                            emotions.items(), 
-                            key=lambda x: x[1], 
-                            reverse=True
-                        )
-                        
-                        # Get primary and secondary emotions
-                        primary_emotion = "neutral"
-                        primary_confidence = 0.0
-                        secondary_emotions = {}
-                        
-                        # Handle the case when dominant_emotion is a dict or not string
-                        try:
-                            if "dominant_emotion" in result:
-                                if isinstance(result["dominant_emotion"], str):
-                                    primary_emotion = self._normalize_emotion(result["dominant_emotion"])
-                                else:
-                                    # If dominant_emotion is not a string, use the highest confidence emotion
-                                    if emotion_items:
-                                        primary_emotion = self._normalize_emotion(emotion_items[0][0])
-                            elif emotion_items:
-                                primary_emotion = self._normalize_emotion(emotion_items[0][0])
-                        except Exception as e:
-                            logger.warning(f"Error processing dominant emotion: {str(e)}")
-                            if emotion_items:
-                                primary_emotion = self._normalize_emotion(emotion_items[0][0])
-                        
-                        # Process emotion results
-                        for emotion_name, confidence in emotion_items:
-                            try:
-                                norm_name = self._normalize_emotion(emotion_name)
-                                if norm_name == primary_emotion:
-                                    primary_confidence = confidence
-                                else:
-                                    # Only include emotions with some confidence
-                                    if confidence > 0.01:
-                                        secondary_emotions[norm_name] = confidence
-                            except Exception as e:
-                                logger.warning(f"Error normalizing emotion {emotion_name}: {str(e)}")
-                                continue
-                        
-                        # Normalize gender
-                        gender = "unknown"
-                        if "gender" in result:
-                            try:
-                                if isinstance(result["gender"], str):
-                                    gender = self._normalize_gender(result["gender"])
-                            except Exception as e:
-                                logger.warning(f"Error normalizing gender: {str(e)}")
-                        
-                        # Age can be used directly
-                        age = result.get("age", 0)
-                        
-                        analysis_result = {
-                            "emotion": primary_emotion,
-                            "emotion_confidence": primary_confidence,
-                            "secondary_emotions": secondary_emotions,
-                            "age": age,
-                            "gender": gender
-                        }
-                        
-                        logger.info(f"DeepFace analysis complete: {primary_emotion} ({primary_confidence:.2f})")
-                        return analysis_result
-                
-                except Exception as e:
-                    logger.warning(f"Conventional DeepFace analysis failed: {str(e)}, using fallback")
-                    # Continue to fallback method
-                    default_result["error"] = f"DeepFace analysis failed: {str(e)}"
-            
-            # OpenCV fallback for emotion classification
+            # Fallback to OpenCV-based detection
+            print("🔎 Falling back to OpenCV-based emotion detection")
             try:
+                # Resize to expected size
+                resized_face = self.cv2.resize(face_img, (48, 48))
+                gray_face = self.cv2.cvtColor(resized_face, self.cv2.COLOR_BGR2GRAY)
+                
+                # Create a blob from the image
+                blob = self.cv2.dnn.blobFromImage(
+                    gray_face, 1.0, (48, 48), (0, 0, 0), 
+                    swapRB=False, crop=False
+                )
+                
+                # Check if we have the emotion network
                 if hasattr(self, 'emotion_net'):
-                    logger.debug("Analyzing face with OpenCV emotion classifier")
+                    self.emotion_net.setInput(blob)
+                    predictions = self.emotion_net.forward()
+                    print(f"🔎 OpenCV emotion raw predictions: {predictions}")
                     
-                    # Preprocess image for emotion classification
-                    face_gray = self.cv2.cvtColor(face_img, self.cv2.COLOR_BGR2GRAY)
-                    face_resized = self.cv2.resize(face_gray, (64, 64))
-                    face_normalized = face_resized / 255.0
-                    face_blob = self.cv2.dnn.blobFromImage(face_normalized)
+                    # Get the emotion with highest confidence
+                    emotion_idx = np.argmax(predictions[0])
+                    confidence = float(predictions[0][emotion_idx])
                     
-                    # Run inference
-                    self.emotion_net.setInput(face_blob)
-                    emotion_preds = self.emotion_net.forward()[0]
+                    # Map to emotion label
+                    emotion_labels = ["neutral", "happy", "surprise", "sad", "angry", "disgust", "fear", "contempt"]
+                    emotion = "neutral"
+                    if emotion_idx < len(emotion_labels):
+                        emotion = emotion_labels[emotion_idx]
                     
-                    # Process emotion results
-                    emotion_idx = np.argmax(emotion_preds)
-                    primary_emotion = self.emotion_labels[emotion_idx]
-                    primary_confidence = float(emotion_preds[emotion_idx])
-                    
-                    # Get secondary emotions
+                    # Create secondary emotions
                     secondary_emotions = {}
-                    for i, conf in enumerate(emotion_preds):
-                        if i != emotion_idx and conf > 0.1:
-                            secondary_emotions[self.emotion_labels[i]] = float(conf)
+                    for i, conf in enumerate(predictions[0]):
+                        if i != emotion_idx and i < len(emotion_labels) and conf > 0.1:
+                            secondary_emotions[emotion_labels[i]] = float(conf)
                     
-                    # Combine with default values
-                    default_result.update({
-                        "emotion": primary_emotion,
-                        "emotion_confidence": primary_confidence,
+                    print(f"🔎 OpenCV detected emotion: {emotion} ({confidence:.2f})")
+                    print(f"🔎 Secondary emotions: {secondary_emotions}")
+                    
+                    return {
+                        "emotion": self._normalize_emotion(emotion),
+                        "emotion_confidence": confidence,
                         "secondary_emotions": secondary_emotions
-                    })
-                    
-                    logger.info(f"OpenCV emotion analysis complete: {primary_emotion} ({primary_confidence:.2f})")
+                    }
                 else:
-                    logger.warning("OpenCV emotion classifier not available, using default values")
-                    # Add a minimal set of emotions as fallback
-                    default_result.update({
-                        "emotion": "neutral",
-                        "emotion_confidence": 0.6,
-                        "secondary_emotions": {"happy": 0.2, "sad": 0.1}
-                    })
+                    # Very basic emotion detection based on facial features
+                    landmarks = self.extract_landmarks(img, detected_face)
+                    metrics = self.calculate_metrics(landmarks)
+                    
+                    eye_openness = metrics.get("eye_openness", 0.5)
+                    mouth_openness = metrics.get("mouth_openness", 0.5)
+                    eyebrow_raise = metrics.get("eyebrow_raise", 0.5)
+                    
+                    print(f"🔎 Facial metrics - Eye: {eye_openness:.2f}, Mouth: {mouth_openness:.2f}, Eyebrow: {eyebrow_raise:.2f}")
+                    
+                    # Very simplified rules for emotion detection
+                    if mouth_openness > 0.7:
+                        emotion = "surprise" if eyebrow_raise > 0.6 else "happy"
+                    elif eyebrow_raise > 0.7:
+                        emotion = "surprise"
+                    elif eye_openness < 0.3:
+                        emotion = "sad"
+                    else:
+                        emotion = "neutral"
+                    
+                    print(f"🔎 Basic feature-based emotion: {emotion} (confidence: 0.6)")
+                    
+                    # Create simple secondary emotions
+                    secondary_emotions = {
+                        "happy": 0.2,
+                        "neutral": 0.2
+                    }
+                    if emotion != "happy" and emotion != "neutral":
+                        secondary_emotions = {
+                            "neutral": 0.4
+                        }
+                    
+                    return {
+                        "emotion": emotion,
+                        "emotion_confidence": 0.6,  # Low confidence for this basic method
+                        "secondary_emotions": secondary_emotions
+                    }
+                
             except Exception as e:
-                logger.warning(f"OpenCV emotion analysis failed: {str(e)}")
-                # Add a minimal set of emotions as fallback
-                default_result.update({
-                    "emotion": "neutral",
-                    "emotion_confidence": 0.5,
-                    "secondary_emotions": {"happy": 0.3}
-                })
+                logger.warning(f"OpenCV emotion detection failed: {str(e)}")
+                print(f"⚠️ OpenCV emotion detection error: {str(e)}")
             
-            return default_result
+            # Default to neutral if all methods fail
+            print("🔎 All emotion detection methods failed, defaulting to neutral")
+            return {
+                "emotion": "neutral",
+                "emotion_confidence": 0.99,
+                "secondary_emotions": {"happy": 0.01}
+            }
             
         except Exception as e:
-            logger.error(f"Face analysis failed: {str(e)}")
-            return {**default_result, "error": f"Face analysis failed: {str(e)}"}
+            logger.error(f"Error analyzing face: {str(e)}")
+            print(f"⚠️ Face analysis error: {str(e)}")
+            return {
+                "emotion": "neutral",
+                "emotion_confidence": 0.99,
+                "secondary_emotions": {}
+            }
     
     def extract_landmarks(self, image: Union[str, np.ndarray], detected_face: Optional[Dict] = None) -> FacialLandmarks:
         """

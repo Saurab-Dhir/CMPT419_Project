@@ -11,6 +11,7 @@ import logging
 from datetime import datetime
 from app.services.deepface_service import DeepFaceService
 from app.models.visual import FacialLandmarks
+from app.routers.realtime import websocket_endpoint
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -34,11 +35,32 @@ app.add_middleware(
 # Include the API router
 app.include_router(api_router, prefix=settings.API_V1_STR)
 
+# Add WebSocket endpoint directly to the app as well for easier access
+app.add_websocket_route("/ws/{client_id}", websocket_endpoint)
+
 # Create static directory for audio files if it doesn't exist
 os.makedirs("static/audio", exist_ok=True)
 
 # Mount the static directory
 app.mount("/audio", StaticFiles(directory="static/audio"), name="audio")
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/")
+async def root():
+    """Redirect to webcam interface."""
+    return {"message": "Welcome to the Empathetic Self-talk Coach API", "documentation": "/docs"}
+
+@app.get("/webcam")
+async def webcam_interface():
+    """Serve the webcam interface."""
+    from fastapi.responses import FileResponse
+    return FileResponse("static/webcam.html")
+
+@app.get("/websocket-test")
+async def websocket_test_interface():
+    """Serve the WebSocket test interface."""
+    from fastapi.responses import FileResponse
+    return FileResponse("static/websocket_test.html")
 
 @app.get("/health")
 async def health_check():

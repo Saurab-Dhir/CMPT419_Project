@@ -263,6 +263,104 @@ class LLMService:
             
             return response_text, response_id
     
+    async def process_multimodal_input(self, multimodal_input) -> Tuple[str, str]:
+        """
+        Process a multimodal input with multiple emotion sources and generate a response.
+        
+        Args:
+            multimodal_input: A MultiModalEmotionInput with speech transcription and emotions
+            
+        Returns:
+            Tuple of (generated response text, response_id)
+        """
+        # Create a unique ID for this response
+        response_id = f"gemini_mm_{uuid.uuid4().hex[:10]}"
+        
+        if not self.api_key:
+            print("❌ No LLM API key provided, please set LLM_API_KEY in .env file")
+            # Return mock response
+            response_text = self._get_mock_multimodal_response(multimodal_input)
+            return response_text, response_id
+        
+        try:
+            # Prepare the full prompt with multimodal input
+            full_prompt = self._prepare_multimodal_prompt(multimodal_input)
+            
+            # Construct the API endpoint URL with the model name and API key
+            url = f"{self.base_url}/{self.model}:generateContent?key={self.api_key}"
+            print(f"🌐 Sending multimodal request to Gemini API: {self.model}")
+            
+            # Prepare the request data
+            data = {
+                "contents": [
+                    {
+                        "parts": [
+                            {
+                                "text": full_prompt
+                            }
+                        ]
+                    }
+                ],
+                "generationConfig": {
+                    "temperature": 0.7,
+                    "maxOutputTokens": 300,
+                    "topP": 0.95,
+                    "topK": 40
+                }
+            }
+            
+            # Make API request
+            response = requests.post(
+                url,
+                json=data,
+                headers={"Content-Type": "application/json"}
+            )
+            
+            # Check for successful response
+            response.raise_for_status()
+            result = response.json()
+            
+            # Debug the response
+            print(f"✅ Gemini API multimodal response received, status: {response.status_code}")
+            
+            # Extract the generated text from the response
+            if "candidates" in result and len(result["candidates"]) > 0:
+                generated_text = result["candidates"][0]["content"]["parts"][0]["text"]
+                response_text = generated_text.strip()
+                print(f"✅ Generated text (first 50 chars): {response_text[:50]}...")
+            else:
+                print("❌ No candidates in Gemini multimodal response")
+                # Fallback to mock
+                response_text = self._get_mock_multimodal_response(multimodal_input)
+            
+            # Log the response
+            response_logger.log_response(
+                response_id=response_id,
+                emotion=multimodal_input.semantic_emotion or "unknown",
+                user_text=multimodal_input.user_speech,
+                response_text=response_text,
+                metadata={
+                    "model": self.model,
+                    "session_id": multimodal_input.session_id,
+                    "semantic_emotion": multimodal_input.semantic_emotion,
+                    "tonal_emotion": multimodal_input.tonal_emotion,
+                    "facial_emotion": multimodal_input.facial_emotion
+                }
+            )
+            
+            return response_text, response_id
+            
+        except Exception as e:
+            print(f"❌ Error in LLM multimodal service: {str(e)}")
+            if isinstance(e, requests.exceptions.RequestException) and hasattr(e, 'response') and e.response is not None:
+                print(f"Response status: {e.response.status_code}")
+                print(f"Response content: {e.response.text[:200]}")
+            
+            # Fallback to mock response on error
+            response_text = self._get_mock_multimodal_response(multimodal_input)
+            
+            return response_text, response_id
+    
     def _prepare_empathetic_prompt(self, prompt: str, emotion: str = None) -> str:
         """Prepare a complete prompt with empathetic instructions."""
         emotion_guidance = f"The user is experiencing {emotion}. Be particularly sensitive to this emotion in your response." if emotion else "Respond with general empathy."
@@ -293,6 +391,93 @@ Keep your response concise (2-3 sentences), conversational, and genuinely suppor
         if not emotion:
             return responses["default"]
         return responses.get(emotion.lower(), responses["default"])
+
+    def _prepare_multimodal_prompt(self, multimodal_input) -> str:
+        """
+        Prepare a prompt for Gemini that includes multimodal emotional information.
+        
+        Args:
+            multimodal_input: A MultiModalEmotionInput with speech and emotions
+            
+        Returns:
+            Formatted prompt string
+        """
+        # Extract the user's speech and emotions
+        user_speech = multimodal_input.user_speech
+        semantic_emotion = multimodal_input.semantic_emotion or "neutral"
+        tonal_emotion = multimodal_input.tonal_emotion or "neutral"
+        facial_emotion = multimodal_input.facial_emotion or "neutral"
+        
+        # Construct a detailed prompt that includes emotional information
+        prompt = f"""Reply to the user as a real human being nothing more nothing less and consider the following:
+
+USER INPUT:
+{{
+  "user_speech": "{user_speech}",
+  "semantic_emotion": "{semantic_emotion}",
+  "tonal_emotion": "{tonal_emotion}",
+  "facial_emotion": "{facial_emotion}"
+}}
+
+INSTRUCTIONS:
+1. The user said what is transcribed in user_speech.
+2. The semantic_emotion is what the content of their words suggests.
+3. The tonal_emotion is what their voice tone suggests.
+4. The facial_emotion is what their facial expressions suggest.
+
+Generate a thoughtful, empathetic response that acknowledges these emotional signals.
+Keep your response concise, human-like, and conversational.
+Do not explicitly mention that you're aware of their emotions unless it feels natural to do so.
+"""
+        
+        return prompt
+
+    def _get_mock_multimodal_response(self, multimodal_input) -> str:
+        """Generate a mock response for multimodal inputs when API is unavailable."""
+        # Extract the user's speech and primary emotion
+        user_speech = multimodal_input.user_speech
+        primary_emotion = multimodal_input.semantic_emotion or multimodal_input.tonal_emotion or multimodal_input.facial_emotion or "neutral"
+        
+        # Mock responses based on emotion
+        responses = {
+            "happy": [
+                "That's wonderful to hear! What's been the highlight of your day so far?",
+                "I'm glad things are going well. Would you like to tell me more about it?"
+            ],
+            "sad": [
+                "I understand that's difficult. Would you like to talk more about what's happening?",
+                "I'm here for you. Take all the time you need to process those feelings."
+            ],
+            "angry": [
+                "That sounds frustrating. What do you think might help in this situation?",
+                "I understand why that would be upsetting. Would talking it through help?"
+            ],
+            "fear": [
+                "It's okay to feel nervous about that. What's your biggest concern right now?",
+                "I can see why that would cause anxiety. Is there something specific that worries you the most?"
+            ],
+            "surprise": [
+                "Wow, that's unexpected! How are you processing this new information?",
+                "That must have been quite a shock. How are you feeling about it now?"
+            ],
+            "disgust": [
+                "That sounds really unpleasant. How are you handling the situation?",
+                "I can understand why you'd feel that way. What would make things better?"
+            ],
+            "neutral": [
+                "I see. What else has been on your mind lately?",
+                "Thanks for sharing that. Is there anything specific you'd like to discuss?"
+            ]
+        }
+        
+        # Default to neutral if emotion not found
+        emotion_category = primary_emotion.lower()
+        if emotion_category not in responses:
+            emotion_category = "neutral"
+        
+        # Select a random response for the emotion
+        import random
+        return random.choice(responses[emotion_category])
 
 # Create a singleton instance
 llm_service = LLMService() 
