@@ -8,36 +8,24 @@ api_router = APIRouter()
 # Include our routers
 api_router.include_router(audio.router, prefix="/audio", tags=["Audio Processing"])
 api_router.include_router(tts.router, prefix="/tts", tags=["Text-to-Speech"])
-api_router.include_router(stt.router, prefix="/stt", tags=["Speech-to-Text"])
 api_router.include_router(response.router, prefix="/response", tags=["Response Generation"])
 api_router.include_router(llm_to_tts.router, prefix="/llm-to-tts", tags=["LLM to TTS Workflow"])
 api_router.include_router(visual.router, prefix="/visual", tags=["Visual Processing"])
 api_router.include_router(multimodal.router, prefix="/multimodal", tags=["Multimodal Processing"])
 api_router.include_router(realtime.router, prefix="/realtime", tags=["Real-time Processing"])
 
-# Create empty stubs for processing
-
-@api_router.get("/visual/status")
-async def visual_status():
-    """Placeholder for visual processing status endpoint."""
-    return {"status": "visual processing not implemented"}
-
+# Create empty stubs for emotion processing
 @api_router.get("/emotion/status")
 async def emotion_status():
     """Placeholder for emotion classification status endpoint."""
-    return {"status": "emotion classification not implemented"}
+    return {"status": "not implemented"}
 
 @api_router.get("/response/status")
 async def response_status():
     """Placeholder for LLM response generation status endpoint."""
-    return {"status": "llm response not implemented"}
+    return {"status": "not implemented"}
 
 @api_router.get("/tts/status")
 async def tts_status():
     """Placeholder for text-to-speech status endpoint."""
-    return {"status": "tts not implemented"} 
-
-@api_router.get("/stt/status")
-async def stt_status():
-    """Placeholder for speech-to-text status endpoint."""
-    return {"status": "stt not implemented"} 
+    return {"status": "not implemented"} 
