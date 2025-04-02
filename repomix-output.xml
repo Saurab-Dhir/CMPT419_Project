@@ -1,0 +1,3219 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+<additional_info>
+
+</additional_info>
+
+</file_summary>
+
+<directory_structure>
+.gitignore
+app/__init__.py
+app/core/__init__.py
+app/core/config.py
+app/main.py
+app/models/__init__.py
+app/models/audio.py
+app/models/response.py
+app/models/visual.py
+app/routers/__init__.py
+app/routers/api.py
+app/routers/audio.py
+app/routers/llm_to_tts.py
+app/routers/response.py
+app/routers/tts.py
+app/services/__init__.py
+app/services/audio_service.py
+app/services/elevenlabs_service.py
+app/services/llm_service.py
+app/services/stt_service.py
+app/services/tts_service.py
+app/tests/__init__.py
+app/tests/test_audio.py
+app/tests/test_elevenlabs_service.py
+app/tests/test_health.py
+app/tests/test_llm_service.py
+app/tests/test_llm_to_tts_api.py
+app/utils/__init__.py
+app/utils/logging.py
+docker-compose.yml
+Dockerfile
+LOGGING_GUIDE.md
+manage_outputs.py
+README.md
+requirements.txt
+test_api.py
+test_audio_workflow.py
+test_elevenlabs.py
+test_files/README.md
+test_llm_service.py
+test_tts.py
+workflow_chart.md
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="app/__init__.py">
+# This file makes the app directory a Python package
+</file>
+
+<file path="app/core/__init__.py">
+# This file makes the core directory a Python package
+</file>
+
+<file path="app/main.py">
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+import os
+from app.routers.api import api_router
+from app.core.config import settings
+
+app = FastAPI(
+    title="Empathetic Self-talk Coach API",
+    description="API for the 'Mirror mirror on the wall!' project",
+    version="0.1.0"
+)
+
+# Configure CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Update this with specific origins for production
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Include the API router
+app.include_router(api_router, prefix=settings.API_V1_STR)
+
+# Create static directory for audio files if it doesn't exist
+os.makedirs("static/audio", exist_ok=True)
+
+# Mount the static directory
+app.mount("/audio", StaticFiles(directory="static/audio"), name="audio")
+
+@app.get("/health")
+async def health_check():
+    """Health check endpoint to verify API is running."""
+    return {"status": "ok", "message": "API is running"}
+</file>
+
+<file path="app/models/__init__.py">
+# This file makes the models directory a Python package
+</file>
+
+<file path="app/models/visual.py">
+from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, Any, Tuple
+from datetime import datetime
+
+class FacialLandmarks(BaseModel):
+    """Model for facial landmarks data."""
+    eye_positions: List[Tuple[float, float]] = Field(..., description="Eye positions (x,y coordinates)")
+    mouth_position: List[Tuple[float, float]] = Field(..., description="Mouth corner positions")
+    eyebrow_positions: List[Tuple[float, float]] = Field(..., description="Eyebrow positions")
+    nose_position: Tuple[float, float] = Field(..., description="Nose position")
+    face_contour: List[Tuple[float, float]] = Field(..., description="Face contour points")
+
+class FacialFeatures(BaseModel):
+    """Model for extracted facial features."""
+    landmarks: FacialLandmarks = Field(..., description="Facial landmarks")
+    eye_openness: float = Field(..., description="Measure of eye openness")
+    mouth_openness: float = Field(..., description="Measure of mouth openness")
+    eyebrow_raise: float = Field(..., description="Measure of eyebrow raise")
+    head_pose: Dict[str, float] = Field(..., description="Head pose angles (pitch, yaw, roll)")
+    
+class FacialEmotionPrediction(BaseModel):
+    """Model for emotion predictions from facial expressions."""
+    emotion: str = Field(..., description="Detected primary emotion")
+    confidence: float = Field(..., description="Confidence score for the prediction")
+    secondary_emotions: Dict[str, float] = Field(default_factory=dict, description="Secondary emotions with confidence scores")
+
+class VisualProcessingResult(BaseModel):
+    """Complete result of visual/facial processing."""
+    id: str = Field(..., description="Unique identifier for the processing result")
+    timestamp: datetime = Field(default_factory=datetime.now, description="When the processing was completed")
+    features: FacialFeatures = Field(..., description="Extracted facial features")
+    emotion_prediction: FacialEmotionPrediction = Field(..., description="Emotion prediction")
+    face_detected: bool = Field(..., description="Whether a face was detected")
+    face_quality: float = Field(..., description="Quality score for the detected face")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "id": "visual_1234567890",
+                "timestamp": "2023-04-01T12:00:00",
+                "features": {
+                    "landmarks": {
+                        "eye_positions": [[0.3, 0.4], [0.7, 0.4]],
+                        "mouth_position": [[0.4, 0.7], [0.6, 0.7]],
+                        "eyebrow_positions": [[0.3, 0.35], [0.7, 0.35]],
+                        "nose_position": [0.5, 0.5],
+                        "face_contour": [[0.3, 0.3], [0.7, 0.3], [0.7, 0.7], [0.3, 0.7]]
+                    },
+                    "eye_openness": 0.8,
+                    "mouth_openness": 0.2,
+                    "eyebrow_raise": 0.6,
+                    "head_pose": {
+                        "pitch": 5.0,
+                        "yaw": -2.0,
+                        "roll": 1.0
+                    }
+                },
+                "emotion_prediction": {
+                    "emotion": "concern",
+                    "confidence": 0.78,
+                    "secondary_emotions": {
+                        "fear": 0.45,
+                        "sadness": 0.30
+                    }
+                },
+                "face_detected": True,
+                "face_quality": 0.92
+            }
+        }
+</file>
+
+<file path="app/routers/__init__.py">
+# This file makes the routers directory a Python package
+</file>
+
+<file path="app/routers/llm_to_tts.py">
+from fastapi import APIRouter, HTTPException, BackgroundTasks
+from typing import Optional, Dict, Any
+from app.models.response import LLMInput, LLMToTTSResponse
+from app.services.llm_service import llm_service
+from app.services.elevenlabs_service import elevenlabs_service
+import time
+
+# Create router
+router = APIRouter()
+
+@router.post("/process", response_model=LLMToTTSResponse)
+async def process_llm_to_tts(llm_input: LLMInput):
+    """
+    Process text through the LLM and convert the response to speech using ElevenLabs.
+    
+    Args:
+        llm_input: The structured input for the LLM
+        
+    Returns:
+        LLMToTTSResponse object with text and audio URL
+    """
+    try:
+        # Step 1: Generate text response from LLM (Gemini)
+        start_time = time.time()
+        response_text, response_id = await llm_service.process_llm_input(llm_input)
+        llm_time = time.time() - start_time
+        
+        if not response_text:
+            raise HTTPException(
+                status_code=500, 
+                detail="Failed to generate text response from LLM"
+            )
+        
+        # Step 2: Convert text to speech using ElevenLabs
+        start_time = time.time()
+        audio_url, audio_path = await elevenlabs_service.synthesize_speech(
+            text=response_text,
+            response_id=response_id
+        )
+        tts_time = time.time() - start_time
+        
+        # Step 3: Create and return the combined response
+        response = LLMToTTSResponse(
+            response_id=response_id,
+            llm_text=response_text,
+            audio_url=audio_url,
+            session_id=llm_input.session_id,
+            emotion=llm_input.emotion,
+            metadata={
+                "llm_processing_time": llm_time,
+                "tts_processing_time": tts_time,
+                "total_processing_time": llm_time + tts_time
+            }
+        )
+        
+        return response
+        
+    except Exception as e:
+        # Log the error and raise a consistent exception
+        print(f"Error in LLM-to-TTS workflow: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to process LLM-to-TTS workflow: {str(e)}"
+        )
+
+@router.post("/process-async", response_model=LLMToTTSResponse)
+async def process_llm_to_tts_async(llm_input: LLMInput, background_tasks: BackgroundTasks):
+    """
+    Process text through LLM and TTS asynchronously in the background.
+    Returns immediately with the LLM response and queues the TTS processing.
+    
+    Args:
+        llm_input: The structured input for the LLM
+        background_tasks: FastAPI background task manager
+        
+    Returns:
+        LLMToTTSResponse object with text (audio URL will be None initially)
+    """
+    try:
+        # Step 1: Generate text response from LLM (Gemini)
+        start_time = time.time()
+        response_text, response_id = await llm_service.process_llm_input(llm_input)
+        llm_time = time.time() - start_time
+        
+        if not response_text:
+            raise HTTPException(
+                status_code=500, 
+                detail="Failed to generate text response from LLM"
+            )
+        
+        # Create initial response without audio URL
+        response = LLMToTTSResponse(
+            response_id=response_id,
+            llm_text=response_text,
+            audio_url=None,  # Will be generated asynchronously
+            session_id=llm_input.session_id,
+            emotion=llm_input.emotion,
+            metadata={
+                "llm_processing_time": llm_time,
+                "status": "tts_processing_queued"
+            }
+        )
+        
+        # Queue TTS processing in the background
+        async def process_tts_in_background():
+            try:
+                await elevenlabs_service.synthesize_speech(
+                    text=response_text,
+                    response_id=response_id
+                )
+            except Exception as e:
+                print(f"Background TTS processing error: {str(e)}")
+        
+        background_tasks.add_task(process_tts_in_background)
+        
+        return response
+        
+    except Exception as e:
+        # Log the error and raise a consistent exception
+        print(f"Error in async LLM-to-TTS workflow: {str(e)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to process async LLM-to-TTS workflow: {str(e)}"
+        )
+
+@router.get("/status")
+async def workflow_status():
+    """Simple status endpoint to verify this router is functioning."""
+    return {
+        "status": "ok",
+        "workflows": ["LLM to TTS synchronous", "LLM to TTS asynchronous"]
+    }
+</file>
+
+<file path="app/routers/tts.py">
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import FileResponse
+from typing import Optional
+from pydantic import BaseModel, Field
+from app.services.tts_service import tts_service
+import os
+import uuid
+
+# Pydantic models for request and response
+class TTSRequest(BaseModel):
+    text: str = Field(..., description="Text to convert to speech")
+    voice: Optional[str] = Field(None, description="Voice to use for synthesis")
+    response_id: Optional[str] = Field(None, description="Optional ID to associate with this response")
+
+class TTSResponse(BaseModel):
+    audio_url: str = Field(..., description="URL to the generated audio file")
+    text: str = Field(..., description="The text that was converted")
+    voice: str = Field(..., description="The voice that was used")
+    output_path: Optional[str] = Field(None, description="Path to the saved output file")
+
+# Create router
+router = APIRouter()
+
+@router.post("/synthesize", response_model=TTSResponse)
+async def synthesize_speech(request: TTSRequest):
+    """
+    Convert text to speech using TogetherAI TTS API.
+    
+    Args:
+        request: TTSRequest with text to convert and optional voice
+        
+    Returns:
+        TTSResponse with URL to the audio file
+    """
+    try:
+        # Generate a response ID if not provided
+        response_id = request.response_id or f"tts_req_{uuid.uuid4().hex[:8]}"
+        
+        # Generate speech from text
+        audio_url, output_path = await tts_service.synthesize(
+            text=request.text, 
+            voice=request.voice,
+            response_id=response_id
+        )
+        
+        if not audio_url:
+            raise HTTPException(
+                status_code=500, 
+                detail="Failed to generate speech audio"
+            )
+        
+        # Return the response
+        return TTSResponse(
+            audio_url=audio_url,
+            text=request.text,
+            voice=request.voice or "default",
+            output_path=output_path
+        )
+        
+    except Exception as e:
+        # Log the error in a real application
+        raise HTTPException(status_code=500, detail=f"Error generating speech: {str(e)}")
+
+@router.get("/status")
+async def tts_status():
+    """Get the status of the TTS service."""
+    return {
+        "status": "operational",
+        "service": "TogetherAI TTS",
+        "voices_available": True
+    }
+</file>
+
+<file path="app/services/__init__.py">
+# This file makes the services directory a Python package
+</file>
+
+<file path="app/services/tts_service.py">
+import os
+import requests
+import uuid
+import json
+from typing import Optional, Dict, Any, BinaryIO, Tuple
+from app.core.config import settings
+from app.utils.logging import response_logger
+
+class TTSService:
+    """Service for Text-to-Speech synthesis using ElevenLabs API."""
+    
+    def __init__(self):
+        self.api_key = settings.ELEVENLABS_API_KEY
+        self.base_url = "https://api.elevenlabs.io/v1/text-to-speech"
+        self.headers = {
+            "xi-api-key": self.api_key,
+            "Content-Type": "application/json"
+        }
+        self.output_dir = "static/audio"
+        
+        # Debug output for API key
+        print(f"🔑 ElevenLabs API Key present: {bool(self.api_key)}")
+        
+        # Create output directory if it doesn't exist
+        os.makedirs(self.output_dir, exist_ok=True)
+        
+        # Create a mock audio file for testing
+        self._create_mock_audio_file()
+    
+    async def synthesize(self, text: str, voice: Optional[str] = None, response_id: Optional[str] = None) -> Tuple[Optional[str], Optional[str]]:
+        """
+        Synthesize text to speech using ElevenLabs API.
+        
+        Args:
+            text: The text to convert to speech
+            voice: The voice to use (defaults to settings.TTS_VOICE)
+            response_id: Optional ID to associate with this synthesis
+            
+        Returns:
+            Tuple of (static URL path, full file path)
+        """
+        if not response_id:
+            response_id = f"tts_{uuid.uuid4().hex[:10]}"
+            
+        print(f"🎙️ TTS Request: '{text[:30]}...' with API key: {bool(self.api_key)}")
+            
+        if not self.api_key:
+            # Return mock audio path if no API key is provided
+            print("❌ No ElevenLabs API key provided, using mock audio")
+            static_path, full_path = self._get_mock_audio_path(response_id)
+            return static_path, full_path
+        
+        try:
+            # Get the voice ID to use (default or specified)
+            voice_id = voice or settings.TTS_VOICE or "21m00Tcm4TlvDq8ikWAM"  # Default to ElevenLabs "Rachel" voice
+            
+            # Prepare the request data
+            data = {
+                "text": text,
+                "model_id": "eleven_monolingual_v1",
+                "voice_settings": {
+                    "stability": 0.5,
+                    "similarity_boost": 0.75
+                }
+            }
+            
+            # Make API request to ElevenLabs
+            endpoint_url = f"{self.base_url}/{voice_id}"
+            print(f"🌍 Making request to ElevenLabs: {endpoint_url}")
+            
+            response = requests.post(
+                endpoint_url,
+                json=data,
+                headers=self.headers
+            )
+            
+            # Check for successful response
+            response.raise_for_status()
+            print(f"✅ ElevenLabs API response received: {response.status_code}")
+            
+            # Generate a unique filename
+            timestamp = uuid.uuid4().hex[:6]
+            audio_filename = f"{response_id}_{timestamp}.mp3"
+            
+            # Save to both static directory (for API access) and output directory (for review)
+            static_file_path = f"{self.output_dir}/{audio_filename}"
+            
+            with open(static_file_path, "wb") as f:
+                f.write(response.content)
+            
+            # Also save to output directory for review
+            output_path = response_logger.save_audio_file(
+                audio_data=response.content,
+                response_id=response_id,
+                tts_source="elevenlabs"
+            )
+            
+            # Return the URL path for API responses
+            return f"/audio/{audio_filename}", output_path
+            
+        except Exception as e:
+            print(f"❌ Error in TTS service: {str(e)}")
+            if isinstance(e, requests.exceptions.RequestException) and hasattr(e, 'response') and e.response is not None:
+                print(f"Response status: {e.response.status_code}")
+                print(f"Response content: {e.response.text[:200]}")
+            # Return mock audio path on error
+            static_path, full_path = self._get_mock_audio_path(response_id)
+            return static_path, full_path
+    
+    def _get_mock_audio_path(self, response_id: str = "mock") -> Tuple[str, str]:
+        """Return mock audio paths for testing."""
+        # Create a unique filename for this response
+        audio_filename = f"{response_id}_mock.mp3"
+        static_file_path = f"{self.output_dir}/{audio_filename}"
+        
+        # Copy the mock audio file to a unique filename if it doesn't exist
+        if not os.path.exists(static_file_path) and os.path.exists(f"{self.output_dir}/mock_tts.mp3"):
+            with open(f"{self.output_dir}/mock_tts.mp3", "rb") as src:
+                with open(static_file_path, "wb") as dst:
+                    dst.write(src.read())
+        
+        return f"/audio/{audio_filename}", static_file_path
+    
+    def _create_mock_audio_file(self):
+        """Create a mock audio file for testing if it doesn't exist."""
+        mock_file_path = f"{self.output_dir}/mock_tts.mp3"
+        if not os.path.exists(mock_file_path):
+            # Create a simple MP3 file with minimal data
+            # This is just a placeholder and won't play actual audio
+            mock_audio = b"\xFF\xFB\x90\x44\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+            with open(mock_file_path, "wb") as f:
+                f.write(mock_audio)
+                
+            # Also save to output directory
+            response_logger.save_audio_file(
+                audio_data=mock_audio,
+                response_id="mock",
+                tts_source="mock"
+            )
+
+# Create a singleton instance
+tts_service = TTSService()
+</file>
+
+<file path="app/tests/__init__.py">
+# This file makes the tests directory a Python package
+</file>
+
+<file path="app/tests/test_audio.py">
+import io
+import pytest
+from fastapi.testclient import TestClient
+from app.main import app
+
+client = TestClient(app)
+
+def test_audio_status():
+    """Test that the audio status endpoint returns the expected response."""
+    response = client.get("/api/v1/audio/status")
+    assert response.status_code == 200
+    assert response.json()["status"] == "operational"
+    assert "services" in response.json()
+    assert isinstance(response.json()["services"], dict)
+
+def test_process_audio_invalid_file_type():
+    """Test that the audio processing endpoint rejects invalid file types."""
+    # Create a test file with incorrect content type
+    test_file = io.BytesIO(b"test content")
+    response = client.post(
+        "/api/v1/audio/process",
+        files={"audio": ("test.txt", test_file, "text/plain")},
+        data={"duration": 5.0}
+    )
+    assert response.status_code == 400
+    assert "Unsupported file type" in response.json()["detail"]
+
+def test_process_audio_success():
+    """Test that the audio processing endpoint successfully processes a valid audio file."""
+    # Create a mock audio file
+    mock_audio = io.BytesIO(b"mock audio data")
+    response = client.post(
+        "/api/v1/audio/process",
+        files={"audio": ("test.wav", mock_audio, "audio/wav")},
+        data={"duration": 5.0}
+    )
+    
+    assert response.status_code == 200
+    
+    # Check that the response has the expected structure
+    data = response.json()
+    assert "id" in data
+    assert "timestamp" in data
+    assert "duration" in data
+    assert "features" in data
+    assert "transcription" in data
+    assert "emotion_prediction" in data
+    
+    # Check that the duration matches what we sent
+    assert data["duration"] == 5.0
+</file>
+
+<file path="app/tests/test_elevenlabs_service.py">
+import pytest
+from unittest.mock import patch, MagicMock
+import os
+import requests
+from app.services.elevenlabs_service import ElevenLabsService
+
+# Test data
+TEST_TEXT = "This is a test response for speech synthesis."
+TEST_VOICE_ID = "test_voice_123"
+TEST_RESPONSE_ID = "test_response_123"
+
+@pytest.fixture
+def elevenlabs_service():
+    """Create an ElevenLabsService instance for testing."""
+    return ElevenLabsService()
+
+@pytest.fixture
+def mock_response():
+    """Create a mock response for requests.post."""
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.content = b"\xFF\xFB\x90\x44\x00\x00\x00\x00"  # Minimal mock MP3 data
+    return mock_resp
+
+@pytest.mark.asyncio
+async def test_synthesize_speech_success(elevenlabs_service, mock_response):
+    """Test successful speech synthesis."""
+    with patch("app.services.elevenlabs_service.requests.post", return_value=mock_response):
+        static_path, full_path = await elevenlabs_service.synthesize_speech(
+            text=TEST_TEXT,
+            voice_id=TEST_VOICE_ID,
+            response_id=TEST_RESPONSE_ID
+        )
+        
+        # Check response format
+        assert isinstance(static_path, str)
+        assert isinstance(full_path, str)
+        assert static_path.startswith("/audio/")
+        assert TEST_RESPONSE_ID in static_path
+        assert os.path.exists(full_path)
+        
+        # Cleanup test file
+        if os.path.exists(full_path):
+            os.remove(full_path)
+
+@pytest.mark.asyncio
+async def test_synthesize_speech_failure(elevenlabs_service):
+    """Test fallback to mock audio on API failure."""
+    with patch("app.services.elevenlabs_service.requests.post", side_effect=requests.exceptions.RequestException("API error")):
+        static_path, full_path = await elevenlabs_service.synthesize_speech(
+            text=TEST_TEXT,
+            voice_id=TEST_VOICE_ID,
+            response_id=TEST_RESPONSE_ID
+        )
+        
+        # Check response format
+        assert isinstance(static_path, str)
+        assert isinstance(full_path, str)
+        assert static_path.startswith("/audio/")
+        assert "mock" in static_path
+        assert os.path.exists(full_path)
+        
+        # Cleanup test file
+        if os.path.exists(full_path):
+            os.remove(full_path)
+
+@pytest.mark.asyncio
+async def test_synthesize_speech_no_api_key(elevenlabs_service):
+    """Test fallback to mock audio when no API key is provided."""
+    # Temporarily set API key to None
+    original_api_key = elevenlabs_service.api_key
+    elevenlabs_service.api_key = None
+    
+    try:
+        static_path, full_path = await elevenlabs_service.synthesize_speech(
+            text=TEST_TEXT,
+            voice_id=TEST_VOICE_ID,
+            response_id=TEST_RESPONSE_ID
+        )
+        
+        # Check response format
+        assert isinstance(static_path, str)
+        assert isinstance(full_path, str)
+        assert static_path.startswith("/audio/")
+        assert "mock" in static_path
+        assert os.path.exists(full_path)
+        
+        # Cleanup test file
+        if os.path.exists(full_path):
+            os.remove(full_path)
+    finally:
+        # Restore original API key
+        elevenlabs_service.api_key = original_api_key
+
+@pytest.mark.asyncio
+async def test_synthesize_speech_auto_response_id(elevenlabs_service, mock_response):
+    """Test auto-generation of response_id when none is provided."""
+    with patch("app.services.elevenlabs_service.requests.post", return_value=mock_response):
+        static_path, full_path = await elevenlabs_service.synthesize_speech(
+            text=TEST_TEXT,
+            voice_id=TEST_VOICE_ID
+        )
+        
+        # Check response format
+        assert isinstance(static_path, str)
+        assert isinstance(full_path, str)
+        assert static_path.startswith("/audio/")
+        assert "tts_" in static_path  # Should have auto-generated ID
+        assert os.path.exists(full_path)
+        
+        # Cleanup test file
+        if os.path.exists(full_path):
+            os.remove(full_path)
+</file>
+
+<file path="app/tests/test_health.py">
+from fastapi.testclient import TestClient
+from app.main import app
+
+client = TestClient(app)
+
+def test_health_check():
+    """Test that the health check endpoint returns status 200 and the correct response."""
+    response = client.get("/health")
+    assert response.status_code == 200
+    assert response.json() == {"status": "ok", "message": "API is running"}
+</file>
+
+<file path="app/tests/test_llm_service.py">
+import pytest
+from unittest.mock import patch, MagicMock
+from app.services.llm_service import LLMService
+from app.models.response import LLMInput
+import requests
+
+# Test data
+TEST_TEXT = "I'm feeling really stressed about my upcoming presentation."
+TEST_EMOTION = "anxiety"
+TEST_SESSION_ID = "test_session_123"
+
+@pytest.fixture
+def llm_service():
+    """Create a LLMService instance for testing."""
+    return LLMService()
+
+@pytest.fixture
+def mock_response():
+    """Create a mock response for requests.post."""
+    mock_resp = MagicMock()
+    mock_resp.status_code = 200
+    mock_resp.json.return_value = {
+        "candidates": [
+            {
+                "content": {
+                    "parts": [
+                        {
+                            "text": "I understand how stressful presentations can be. Remember that you've prepared well, and it's normal to feel nervous. Would it help to practice once more?"
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+    return mock_resp
+
+@pytest.fixture
+def llm_input():
+    """Create a test LLMInput object."""
+    return LLMInput(
+        text=TEST_TEXT,
+        emotion=TEST_EMOTION,
+        session_id=TEST_SESSION_ID,
+        max_tokens=300,
+        temperature=0.7
+    )
+
+@pytest.mark.asyncio
+async def test_process_llm_input_success(llm_service, llm_input, mock_response):
+    """Test successful LLM response generation."""
+    with patch("app.services.llm_service.requests.post", return_value=mock_response):
+        response_text, response_id = await llm_service.process_llm_input(llm_input)
+        
+        # Check response format
+        assert isinstance(response_text, str)
+        assert isinstance(response_id, str)
+        assert response_id.startswith("gemini_")
+        
+        # Check response content matches mock response
+        expected_text = "I understand how stressful presentations can be. Remember that you've prepared well, and it's normal to feel nervous. Would it help to practice once more?"
+        assert response_text == expected_text
+
+@pytest.mark.asyncio
+async def test_process_llm_input_failure(llm_service, llm_input):
+    """Test fallback to mock response on API failure."""
+    with patch("app.services.llm_service.requests.post", side_effect=requests.exceptions.RequestException("API error")):
+        response_text, response_id = await llm_service.process_llm_input(llm_input)
+        
+        # Check response format
+        assert isinstance(response_text, str)
+        assert isinstance(response_id, str)
+        assert response_id.startswith("gemini_")
+        
+        # Check response is a mock response related to anxiety
+        assert "anxiety" in response_text.lower()
+
+@pytest.mark.asyncio
+async def test_process_llm_input_no_api_key(llm_service, llm_input):
+    """Test fallback to mock response when no API key is provided."""
+    # Temporarily set API key to None
+    original_api_key = llm_service.api_key
+    llm_service.api_key = None
+    
+    try:
+        response_text, response_id = await llm_service.process_llm_input(llm_input)
+        
+        # Check response format
+        assert isinstance(response_text, str)
+        assert isinstance(response_id, str)
+        assert response_id.startswith("gemini_")
+        
+        # Check for mock response content
+        assert "anxiety" in response_text.lower()
+    finally:
+        # Restore original API key
+        llm_service.api_key = original_api_key
+
+@pytest.mark.asyncio
+async def test_process_llm_input_empty_response(llm_service, llm_input):
+    """Test fallback to mock when API returns empty response."""
+    # Create a mock with empty candidates
+    empty_mock = MagicMock()
+    empty_mock.status_code = 200
+    empty_mock.json.return_value = {"candidates": []}
+    
+    with patch("app.services.llm_service.requests.post", return_value=empty_mock):
+        response_text, response_id = await llm_service.process_llm_input(llm_input)
+        
+        # Check response format
+        assert isinstance(response_text, str)
+        assert isinstance(response_id, str)
+        assert response_id.startswith("gemini_")
+        
+        # Should be a mock response
+        assert "anxiety" in response_text.lower()
+</file>
+
+<file path="app/tests/test_llm_to_tts_api.py">
+import pytest
+from fastapi.testclient import TestClient
+from unittest.mock import patch, AsyncMock
+from app.main import app
+from app.models.response import LLMInput
+
+# Create test client
+client = TestClient(app)
+
+# Sample test data
+TEST_LLM_INPUT = {
+    "text": "I'm feeling anxious about my upcoming presentation.",
+    "emotion": "anxiety",
+    "session_id": "test_session_123",
+    "max_tokens": 300,
+    "temperature": 0.7
+}
+
+@pytest.fixture
+def mock_llm_service():
+    """Create a mock for the LLM service."""
+    with patch("app.routers.llm_to_tts.llm_service.process_llm_input") as mock:
+        mock.return_value = AsyncMock(return_value=("This is a mock LLM response.", "mock_response_123"))
+        yield mock
+
+@pytest.fixture
+def mock_elevenlabs_service():
+    """Create a mock for the ElevenLabs service."""
+    with patch("app.routers.llm_to_tts.elevenlabs_service.synthesize_speech") as mock:
+        mock.return_value = AsyncMock(return_value=("/audio/mock_audio.mp3", "/full/path/to/audio.mp3"))
+        yield mock
+
+def test_process_llm_to_tts(mock_llm_service, mock_elevenlabs_service):
+    """Test the synchronous LLM-to-TTS workflow endpoint."""
+    response = client.post("/api/v1/llm-to-tts/process", json=TEST_LLM_INPUT)
+    
+    # Check response status and structure
+    assert response.status_code == 200
+    data = response.json()
+    assert "response_id" in data
+    assert "llm_text" in data
+    assert "audio_url" in data
+    assert "session_id" in data
+    assert data["session_id"] == TEST_LLM_INPUT["session_id"]
+    
+    # Verify service calls
+    mock_llm_service.assert_called_once()
+    mock_elevenlabs_service.assert_called_once()
+
+def test_process_llm_to_tts_async(mock_llm_service, mock_elevenlabs_service):
+    """Test the asynchronous LLM-to-TTS workflow endpoint."""
+    response = client.post("/api/v1/llm-to-tts/process-async", json=TEST_LLM_INPUT)
+    
+    # Check response status and structure
+    assert response.status_code == 200
+    data = response.json()
+    assert "response_id" in data
+    assert "llm_text" in data
+    assert "session_id" in data
+    assert data["session_id"] == TEST_LLM_INPUT["session_id"]
+    
+    # For async, audio_url should be None initially
+    assert data["audio_url"] is None
+    
+    # Verify LLM service was called
+    mock_llm_service.assert_called_once()
+    
+    # ElevenLabs service will be called in background, so not immediately verifiable
+
+def test_workflow_status():
+    """Test the workflow status endpoint."""
+    response = client.get("/api/v1/llm-to-tts/status")
+    
+    # Check response status and structure
+    assert response.status_code == 200
+    data = response.json()
+    assert "status" in data
+    assert data["status"] == "ok"
+    assert "workflows" in data
+    assert isinstance(data["workflows"], list)
+    assert len(data["workflows"]) == 2  # Should have sync and async workflows
+
+def test_invalid_input():
+    """Test the endpoint with invalid input."""
+    # Missing required fields
+    invalid_input = {
+        "text": "Test message",
+        # Missing session_id which is required
+    }
+    
+    response = client.post("/api/v1/llm-to-tts/process", json=invalid_input)
+    assert response.status_code == 422  # Validation error
+</file>
+
+<file path="app/utils/__init__.py">
+# This file makes the utils directory a Python package
+</file>
+
+<file path="docker-compose.yml">
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - ENVIRONMENT=development
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+</file>
+
+<file path="Dockerfile">
+FROM python:3.10-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libc6-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy requirements first for better caching
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Copy the rest of the application
+COPY . .
+
+# Command to run the application with hot-reload for development
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+</file>
+
+<file path="LOGGING_GUIDE.md">
+# Logging and Output Guide for Empathetic Self-talk Coach
+
+This guide explains how to use the logging and output features of the Empathetic Self-talk Coach backend.
+
+## Directory Structure
+
+The system saves various outputs to the following directories:
+
+- `logs/transcriptions`: Contains JSON files of speech transcriptions with details
+- `logs/responses`: Contains JSON files of Gemini responses with context
+- `output/audio`: Contains the TTS audio files generated by TogetherAI
+- `static/audio`: Contains audio files served by the API (also accessible via API endpoints)
+
+## Viewing Transcriptions
+
+When audio is processed through the `/api/v1/audio/process` endpoint:
+
+1. The text from your audio will be transcribed
+2. The transcription will be saved to `logs/transcriptions/{timestamp}_{audio_id}_transcription.json`
+3. The text, confidence score, and metadata will be displayed in the console
+4. The transcription is also included in the API response
+
+Examining the JSON files in the transcriptions directory will let you see what text was recognized from your audio.
+
+## Viewing Gemini Responses
+
+When you generate responses through the `/api/v1/response/generate` endpoint:
+
+1. Your input will be sent to Gemini with the detected emotion
+2. The response will be saved to `logs/responses/{timestamp}_{response_id}_response.json`
+3. The user input, emotion, and Gemini's response will be displayed in the console
+4. The response is also included in the API response
+
+Examining the JSON files in the responses directory will let you see how Gemini responded to different inputs and emotions.
+
+## Accessing TTS Audio Files
+
+When TTS audio is generated:
+
+1. The audio is saved in both:
+   - `static/audio/` (for API access)
+   - `output/audio/{timestamp}_{response_id}_togetherai.mp3` (for review)
+2. The paths are displayed in the console
+3. The URLs are included in the API responses
+
+You can listen to the generated audio files directly from the `output/audio` directory.
+
+## Managing Output Files
+
+Use the `manage_outputs.py` script to manage your output files:
+
+```bash
+# Create all necessary directories
+python manage_outputs.py create
+
+# List all output files across directories
+python manage_outputs.py list
+
+# Clear all output files (preserves directories)
+python manage_outputs.py clear
+```
+
+## Testing with Enhanced Output
+
+The enhanced `test_api.py` script provides detailed output and saves all responses to the logs directory:
+
+```bash
+# Run the test script
+python test_api.py
+```
+
+This will:
+1. Test each endpoint
+2. Display detailed information about the responses
+3. Save the full responses to the logs directory
+4. Save any generated audio to the output directory
+
+## Troubleshooting
+
+If you don't see output in the expected directories:
+
+1. Check that the directories exist by running `python manage_outputs.py create`
+2. Ensure the API server is running (`uvicorn app.main:app --reload`)
+3. Look for error messages in the console output
+4. Check the API responses for error details
+</file>
+
+<file path="manage_outputs.py">
+import os
+import shutil
+import argparse
+import glob
+from datetime import datetime
+
+def clear_outputs():
+    """Clear all output directories except for the directories themselves."""
+    output_dirs = [
+        "logs/transcriptions",
+        "logs/responses",
+        "output/audio",
+        "static/audio"
+    ]
+    
+    for directory in output_dirs:
+        if os.path.exists(directory):
+            print(f"Clearing {directory}...")
+            # Delete all files in the directory
+            for file_path in glob.glob(os.path.join(directory, "*")):
+                if os.path.isfile(file_path):
+                    os.remove(file_path)
+                    print(f"  Deleted: {file_path}")
+    
+    print("\nAll output directories cleared.")
+
+def create_dirs():
+    """Create necessary directories if they don't exist."""
+    dirs = [
+        "logs",
+        "logs/transcriptions",
+        "logs/responses",
+        "output",
+        "output/audio",
+        "static",
+        "static/audio"
+    ]
+    
+    for directory in dirs:
+        os.makedirs(directory, exist_ok=True)
+        print(f"Directory ensured: {directory}")
+    
+    print("\nAll required directories are ready.")
+
+def list_outputs():
+    """List all output files across directories."""
+    output_dirs = [
+        "logs/transcriptions",
+        "logs/responses",
+        "output/audio",
+        "static/audio"
+    ]
+    
+    total_files = 0
+    
+    for directory in output_dirs:
+        if os.path.exists(directory):
+            files = glob.glob(os.path.join(directory, "*"))
+            file_count = len(files)
+            total_files += file_count
+            
+            print(f"\n{directory} ({file_count} files):")
+            if file_count > 0:
+                for idx, file_path in enumerate(sorted(files), 1):
+                    file_size = os.path.getsize(file_path) / 1024  # Size in KB
+                    mod_time = datetime.fromtimestamp(os.path.getmtime(file_path))
+                    mod_time_str = mod_time.strftime("%Y-%m-%d %H:%M:%S")
+                    print(f"  {idx}. {os.path.basename(file_path)} ({file_size:.2f} KB) - {mod_time_str}")
+    
+    print(f"\nTotal files: {total_files}")
+
+def main():
+    """Main function to parse arguments and execute commands."""
+    parser = argparse.ArgumentParser(description="Manage output files for the Empathetic Self-talk Coach")
+    parser.add_argument("action", choices=["clear", "create", "list"], 
+                        help="Action to perform: clear outputs, create directories, or list outputs")
+    
+    args = parser.parse_args()
+    
+    if args.action == "clear":
+        clear_outputs()
+    elif args.action == "create":
+        create_dirs()
+    elif args.action == "list":
+        list_outputs()
+
+if __name__ == "__main__":
+    main()
+</file>
+
+<file path="requirements.txt">
+fastapi>=0.95.0
+uvicorn>=0.21.1
+python-multipart>=0.0.6
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+pytest>=7.3.1
+httpx>=0.24.0
+requests>=2.28.0
+python-dotenv>=1.0.0
+google-generativeai>=0.3.0
+</file>
+
+<file path="test_api.py">
+import requests
+import json
+import os
+import time
+
+# Base URL for the API
+BASE_URL = "http://localhost:8000"
+
+def print_separator():
+    """Print a separator line."""
+    print("\n" + "="*80 + "\n")
+
+def test_health():
+    """Test the health check endpoint"""
+    print("\n🔍 TESTING HEALTH CHECK ENDPOINT:")
+    response = requests.get(f"{BASE_URL}/health")
+    print(f"Status Code: {response.status_code}")
+    print(json.dumps(response.json(), indent=2))
+    print_separator()
+
+def test_audio_process():
+    """Test the audio processing endpoint"""
+    print("\n🎤 TESTING AUDIO PROCESSING ENDPOINT:")
+    audio_file_path = "test_files/test_1.wav"
+    
+    print(f"Using audio file: {audio_file_path}")
+    
+    # Open the audio file in binary mode
+    with open(audio_file_path, "rb") as audio_file:
+        # Prepare the form data
+        files = {"audio": (audio_file_path, audio_file, "audio/wav")}
+        data = {"duration": 5.0}
+        
+        # Make the request
+        print("Sending request to process audio...")
+        response = requests.post(
+            f"{BASE_URL}/api/v1/audio/process",
+            files=files,
+            data=data
+        )
+        
+        print(f"Status Code: {response.status_code}")
+        if response.status_code == 200:
+            result = response.json()
+            print("\n📝 TRANSCRIPTION RESULT:")
+            print(f"Text: '{result['transcription']['text']}'")
+            print(f"Confidence: {result['transcription']['confidence']}")
+            
+            print("\n😊 EMOTION PREDICTION:")
+            print(f"Primary Emotion: {result['emotion_prediction']['emotion']}")
+            print(f"Confidence: {result['emotion_prediction']['confidence']}")
+            print("Secondary Emotions:")
+            for emotion, confidence in result['emotion_prediction']['secondary_emotions'].items():
+                print(f"  - {emotion}: {confidence}")
+                
+            # Save the full response to a file for reference
+            with open("logs/last_audio_response.json", "w") as f:
+                json.dump(result, f, indent=2)
+                print("\nFull response saved to logs/last_audio_response.json")
+        else:
+            print("Error:", response.text)
+    
+    print_separator()
+
+def test_tts():
+    """Test the TTS endpoint"""
+    print("\n🔊 TESTING TEXT-TO-SPEECH ENDPOINT:")
+    data = {
+        "text": "Hello, this is a test of text to speech synthesis. I hope it works well!",
+        "voice": None
+    }
+    
+    print(f"Input Text: '{data['text']}'")
+    print("Sending request to synthesize speech...")
+    
+    response = requests.post(
+        f"{BASE_URL}/api/v1/tts/synthesize",
+        json=data
+    )
+    
+    print(f"Status Code: {response.status_code}")
+    if response.status_code == 200:
+        result = response.json()
+        print(f"Audio URL: {result['audio_url']}")
+        if 'output_path' in result and result['output_path']:
+            print(f"Output File: {result['output_path']}")
+            
+        # Save the response to a file
+        with open("logs/last_tts_response.json", "w") as f:
+            json.dump(result, f, indent=2)
+            print("Full response saved to logs/last_tts_response.json")
+    else:
+        print("Error:", response.text)
+    
+    print_separator()
+
+def test_response_generation():
+    """Test the response generation endpoint"""
+    print("\n💬 TESTING RESPONSE GENERATION ENDPOINT:")
+    data = {
+        "text": "I feel really anxious about my upcoming presentation next week.",
+        "emotion": "anxiety",
+        "session_id": "test_session_123",
+        "generate_audio": True
+    }
+    
+    print(f"User Input: '{data['text']}'")
+    print(f"Emotion: {data['emotion']}")
+    print("Sending request to generate response...")
+    
+    response = requests.post(
+        f"{BASE_URL}/api/v1/response/generate",
+        json=data
+    )
+    
+    print(f"Status Code: {response.status_code}")
+    if response.status_code == 200:
+        result = response.json()
+        
+        print("\n🤖 GEMINI RESPONSE:")
+        print(f"Response: '{result['response']['text']}'")
+        print(f"Emotion Addressed: {result['response']['emotion_addressed']}")
+        print(f"Response Type: {result['response']['response_type']}")
+        
+        if result['audio_url']:
+            print(f"\n🔊 TTS AUDIO: {result['audio_url']}")
+            
+        # Save the response to a file
+        with open("logs/last_gemini_response.json", "w") as f:
+            json.dump(result, f, indent=2)
+            print("Full response saved to logs/last_gemini_response.json")
+    else:
+        print("Error:", response.text)
+    
+    print_separator()
+
+def test_audio_pipeline():
+    """Test the complete audio pipeline endpoint"""
+    print("\n🔄 TESTING COMPLETE AUDIO PIPELINE:")
+    audio_file_path = "test_files/test_1.wav"
+    
+    print(f"Using audio file: {audio_file_path}")
+    
+    # Open the audio file in binary mode
+    with open(audio_file_path, "rb") as audio_file:
+        # Prepare the form data
+        files = {"audio": (audio_file_path, audio_file, "audio/wav")}
+        data = {
+            "session_id": "test_pipeline_session",
+            "generate_audio": "true"
+        }
+        
+        # Make the request
+        print("Sending request to process audio through complete pipeline...")
+        response = requests.post(
+            f"{BASE_URL}/api/v1/response/audio-pipeline",
+            files=files,
+            data=data
+        )
+        
+        print(f"Status Code: {response.status_code}")
+        if response.status_code == 200:
+            result = response.json()
+            
+            print("\n🎙️ COMPLETE PIPELINE RESULTS:")
+            print(f"Response ID: {result['id']}")
+            print(f"Gemini Response: '{result['response']['text']}'")
+            
+            if result['audio_url']:
+                print(f"Response Audio: {result['audio_url']}")
+                
+            # Save the full response to a file for reference
+            with open("logs/last_pipeline_response.json", "w") as f:
+                json.dump(result, f, indent=2)
+                print("\nFull response saved to logs/last_pipeline_response.json")
+        else:
+            print("Error:", response.text)
+    
+    print_separator()
+
+def setup():
+    """Setup test environment."""
+    # Create logs directory if it doesn't exist
+    os.makedirs("logs", exist_ok=True)
+    print("🔧 Test setup complete. Log directory created.")
+
+if __name__ == "__main__":
+    print("🚀 STARTING API TESTS...\n")
+    setup()
+    test_health()
+    test_audio_process()
+    test_tts()
+    test_response_generation()
+    test_audio_pipeline()  # Test the new complete pipeline
+    print("✅ ALL TESTS COMPLETED!")
+    print("\nCheck the 'logs' directory for detailed outputs")
+    print("Check the 'output/audio' directory for generated TTS files")
+</file>
+
+<file path="test_audio_workflow.py">
+import requests
+import json
+import os
+import time
+
+def test_audio_workflow():
+    """Test the audio processing workflow with a sample audio file."""
+    
+    # Define the API endpoint
+    url = "http://localhost:8000/api/v1/audio/process"
+    
+    # Path to a sample audio file for testing
+    # Using the existing test file in the repository
+    test_audio_file = "test_files/test_1.wav"
+    
+    if not os.path.exists(test_audio_file):
+        print(f"Error: Test file {test_audio_file} not found.")
+        print("Please ensure the test_files directory contains test_1.wav")
+        return
+    
+    # Prepare the form data
+    files = {
+        'audio': (os.path.basename(test_audio_file), open(test_audio_file, 'rb'), 'audio/wav')
+    }
+    data = {
+        'duration': 5.0  # Duration in seconds (adjust to match your file)
+    }
+    
+    print(f"Sending audio file {test_audio_file} to {url}")
+    print("This will test the following workflow:")
+    print("1. Audio file -> Gemini API for transcription")
+    print("2. Audio file -> Emotion classifier placeholder (in development)")
+    start_time = time.time()
+    
+    # Make the request
+    try:
+        response = requests.post(url, files=files, data=data)
+        
+        # Check for successful response
+        if response.status_code == 200:
+            result = response.json()
+            elapsed_time = time.time() - start_time
+            
+            print(f"\nSuccess! Processing completed in {elapsed_time:.2f} seconds")
+            print("\nTranscription Result from Gemini:")
+            print(f"ID: {result['id']}")
+            print(f"Text: {result['transcription']['text']}")
+            
+            print("\nEmotion Placeholder (Classifier in development):")
+            print(f"Primary emotion: {result['emotion_prediction']['emotion']}")
+            
+        else:
+            print(f"Error: Status code {response.status_code}")
+            print(response.text)
+    
+    except Exception as e:
+        print(f"Error testing audio workflow: {str(e)}")
+    
+    finally:
+        # Close the file
+        files['audio'][1].close()
+
+if __name__ == "__main__":
+    test_audio_workflow()
+</file>
+
+<file path="test_elevenlabs.py">
+import os
+import requests
+import json
+
+def test_elevenlabs_tts():
+    """Test ElevenLabs TTS integration directly"""
+    print("\n🔊 TESTING ELEVENLABS TEXT-TO-SPEECH:")
+    
+    # Prompt for the API key if not provided
+    api_key = input("Enter your ElevenLabs API key: ")
+    if not api_key:
+        print("No API key provided. Exiting...")
+        return
+    
+    # ElevenLabs API endpoint
+    voice_id = "21m00Tcm4TlvDq8ikWAM"  # Default to "Rachel" voice
+    base_url = f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+    
+    # Test text
+    test_text = "Hello, this is a test of ElevenLabs text to speech synthesis. I hope it works well!"
+    
+    # Headers
+    headers = {
+        "xi-api-key": api_key,
+        "Content-Type": "application/json"
+    }
+    
+    # Data
+    data = {
+        "text": test_text,
+        "model_id": "eleven_monolingual_v1",
+        "voice_settings": {
+            "stability": 0.5,
+            "similarity_boost": 0.75
+        }
+    }
+    
+    print(f"Input Text: '{test_text}'")
+    print(f"Making request to ElevenLabs: {base_url}")
+    
+    try:
+        # Make the API request
+        response = requests.post(
+            base_url,
+            json=data,
+            headers=headers
+        )
+        
+        # Check response
+        response.raise_for_status()
+        print(f"✅ ElevenLabs API response received: {response.status_code}")
+        
+        # Save the audio file
+        output_dir = "output/audio"
+        os.makedirs(output_dir, exist_ok=True)
+        
+        output_path = f"{output_dir}/elevenlabs_test.mp3"
+        with open(output_path, "wb") as f:
+            f.write(response.content)
+        
+        # Check file size
+        file_size = os.path.getsize(output_path)
+        print(f"Audio file saved to: {output_path}")
+        print(f"Output file size: {file_size} bytes")
+        
+        if file_size > 1000:
+            print("✅ SUCCESS: ElevenLabs TTS generated a real audio file")
+        else:
+            print("⚠️ WARNING: File exists but is very small, might be a mock")
+            
+    except requests.exceptions.RequestException as e:
+        print(f"❌ Error in request: {str(e)}")
+        if hasattr(e, 'response') and e.response is not None:
+            print(f"Response status: {e.response.status_code}")
+            print(f"Response content: {e.response.text[:200]}")
+    except Exception as e:
+        print(f"❌ Unexpected error: {str(e)}")
+
+if __name__ == "__main__":
+    test_elevenlabs_tts()
+</file>
+
+<file path="test_files/README.md">
+# Test Files Directory
+
+This directory contains sample audio files for testing the speech-to-text and emotion classification functionality.
+
+## Available Test Files
+
+- `test_1.wav` - Sample audio file for testing
+
+## How to Use
+
+You can test the audio processing workflow with these files using:
+
+1. **Python Test Script**:
+   ```
+   python test_audio_workflow.py
+   ```
+   This script will send the audio to the API and show the transcription results.
+
+2. **Direct API Call**:
+   ```
+   curl -X POST "http://localhost:8000/api/v1/audio/process" \
+     -F "audio=@test_files/test_1.wav" \
+     -F "duration=5.0"
+   ```
+
+3. **Swagger UI**:
+   - Go to http://localhost:8000/docs
+   - Navigate to the `/api/v1/audio/process` endpoint
+   - Click "Try it out"
+   - Upload a test file and set the duration
+   - Click "Execute"
+
+## Adding New Test Files
+
+You can add your own audio files to this directory for testing. Supported formats:
+- WAV (.wav)
+- MP3 (.mp3)
+- FLAC (.flac)
+
+For best results with the Gemini transcription, use clear audio with minimal background noise and good recording quality.
+</file>
+
+<file path="test_llm_service.py">
+import asyncio
+import sys
+import os
+
+# Add the current directory to the path so we can import from app
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+from app.services.llm_service import llm_service
+from app.models.response import LLMInput
+
+async def test_llm_service():
+    """Test the LLM service by generating a response."""
+    print("=== LLM Service Test ===")
+    print(f"API Key present: {bool(llm_service.api_key)}")
+    print(f"Using model: {llm_service.model}")
+    
+    # Test with a sample input
+    test_prompt = "I'm feeling really stressed about my upcoming exam."
+    
+    print("\n=== Testing with direct prompt ===")
+    print(f"Input prompt: {test_prompt}")
+    response_text, response_id = await llm_service.generate_response(test_prompt, emotion="anxiety")
+    print(f"Response ID: {response_id}")
+    print(f"Response text: {response_text}")
+    
+    # Test with a structured input
+    print("\n=== Testing with structured input ===")
+    llm_input = LLMInput(
+        text="I'm worried about my job interview tomorrow.",
+        emotion="anxiety",
+        temperature=0.7,
+        max_tokens=300,
+        session_id="test_session"
+    )
+    print(f"Input: {llm_input}")
+    response_text, response_id = await llm_service.process_llm_input(llm_input)
+    print(f"Response ID: {response_id}")
+    print(f"Response text: {response_text}")
+    
+if __name__ == "__main__":
+    asyncio.run(test_llm_service())
+</file>
+
+<file path="test_tts.py">
+import asyncio
+import os
+import json
+from app.services.tts_service import tts_service
+
+async def test_elevenlabs_tts():
+    """Test ElevenLabs TTS integration directly"""
+    print("\n🔊 TESTING ELEVENLABS TEXT-TO-SPEECH:")
+    
+    # Use a simple test text
+    test_text = "Hello, this is a test of ElevenLabs text to speech synthesis. I hope it works well!"
+    
+    print(f"Input Text: '{test_text}'")
+    print("Sending request to ElevenLabs...")
+    
+    # Call the TTS service directly
+    audio_url, output_path = await tts_service.synthesize(
+        text=test_text,
+        response_id="elevenlabs_test"
+    )
+    
+    print(f"Audio URL: {audio_url}")
+    print(f"Output File: {output_path}")
+    
+    # Check if the file exists and has actual content
+    if output_path and os.path.exists(output_path):
+        file_size = os.path.getsize(output_path)
+        print(f"Output file size: {file_size} bytes")
+        
+        if file_size > 1000:  # If file is reasonably sized (not just a mock)
+            print("✅ SUCCESS: ElevenLabs TTS generated a real audio file")
+        else:
+            print("⚠️ WARNING: File exists but is very small, might be a mock")
+    else:
+        print("❌ ERROR: Output file was not created")
+
+if __name__ == "__main__":
+    # Run the async test
+    asyncio.run(test_elevenlabs_tts())
+</file>
+
+<file path="workflow_chart.md">
+# Mirror Mirror on the Wall: System Workflow
+
+```mermaid
+graph TD
+    %% Main input nodes
+    User([User]) --> Audio[Audio Input]
+    User --> Video[Video Input]
+    
+    %% Audio processing branch
+    Audio --> AudioRouter["/api/v1/audio/process"]
+    AudioRouter --> AudioService[AudioService]
+    AudioService --> |Extract Features| AudioFeatures[Audio Features]
+    AudioService --> |Transcribe| STTService[Speech-to-Text Service]
+    STTService --> |Using Gemini API| Transcription[Text Transcription]
+    AudioFeatures --> |Analyze| AudioEmotion[Audio Emotion Analysis]
+    
+    %% Video processing branch
+    Video --> VisualRouter["/api/v1/visual/process"]
+    VisualRouter --> VisualService[Visual Service]
+    VisualService --> |Using DeepFace| FacialFeatures[Facial Features]
+    FacialFeatures --> FacialEmotion[Facial Emotion Analysis]
+    
+    %% Emotion fusion
+    AudioEmotion --> EmotionFusion{Emotion Fusion}
+    FacialEmotion --> EmotionFusion
+    EmotionFusion --> CombinedEmotionAnalysis[Combined Emotion Analysis]
+    
+    %% Response generation
+    Transcription --> ResponseRouter["/api/v1/response/generate"]
+    CombinedEmotionAnalysis --> ResponseRouter
+    ResponseRouter --> LLMService[LLM Service]
+    LLMService --> |Using Gemini API| TextResponse[Empathetic Text Response]
+    
+    %% Text-to-Speech conversion
+    TextResponse --> TTSRouter["/api/v1/tts/synthesize"]
+    TTSRouter --> ElevenLabsService[ElevenLabs Service]
+    ElevenLabsService --> AudioResponse[Speech Audio Response]
+    
+    %% Combined LLM-to-TTS workflow
+    Transcription --> LLMtoTTSRouter["/api/v1/llm-to-tts/process"]
+    CombinedEmotionAnalysis --> LLMtoTTSRouter
+    LLMtoTTSRouter --> |One-step process| LLMtoTTSService[LLM-to-TTS Service]
+    LLMtoTTSService --> |Using Gemini| LLMStep[Generate Text]
+    LLMStep --> |Using ElevenLabs| TTSStep[Convert to Speech]
+    TTSStep --> CombinedResponse[Text + Audio Response]
+    
+    %% Back to user
+    AudioResponse --> ReturnToUser[Return to User]
+    CombinedResponse --> ReturnToUser
+    ReturnToUser --> User
+    
+    %% Style definitions
+    classDef userNode fill:#f9f,stroke:#333,stroke-width:2px;
+    classDef inputNode fill:#bbf,stroke:#33f,stroke-width:2px;
+    classDef routerNode fill:#fbb,stroke:#f33,stroke-width:2px;
+    classDef serviceNode fill:#bfb,stroke:#3f3,stroke-width:2px;
+    classDef dataNode fill:#fffaaa,stroke:#aa3,stroke-width:2px;
+    classDef outputNode fill:#fbf,stroke:#f3f,stroke-width:2px;
+    
+    %% Apply styles
+    class User userNode;
+    class Audio,Video inputNode;
+    class AudioRouter,VisualRouter,ResponseRouter,TTSRouter,LLMtoTTSRouter routerNode;
+    class AudioService,STTService,VisualService,LLMService,ElevenLabsService,LLMtoTTSService serviceNode;
+    class AudioFeatures,Transcription,FacialFeatures,AudioEmotion,FacialEmotion,CombinedEmotionAnalysis,TextResponse,AudioResponse,CombinedResponse dataNode;
+    class ReturnToUser outputNode;
+```
+
+## API Routes and Data Flow
+
+### 1. Audio Processing Route
+- **Endpoint**: `/api/v1/audio/process`
+- **Input**: Audio file (WAV, MP3, FLAC)
+- **Process**: 
+  1. Extract audio features (volume, pitch, rate, pauses)
+  2. Transcribe speech using Gemini API
+  3. Analyze emotion from audio characteristics
+- **Output**: `AudioProcessingResult` with transcription and emotion analysis
+
+### 2. Visual Processing Route
+- **Endpoint**: `/api/v1/visual/process`
+- **Input**: Video frame or image with face
+- **Process**:
+  1. Detect facial landmarks using DeepFace
+  2. Extract facial features (eye openness, mouth position, etc.)
+  3. Classify emotions from facial expressions
+- **Output**: `VisualProcessingResult` with facial features and emotion prediction
+
+### 3. Response Generation Route
+- **Endpoint**: `/api/v1/response/generate`
+- **Input**: User text and emotion analysis
+- **Process**:
+  1. Format prompt with emotional context
+  2. Generate empathetic response using Gemini LLM
+- **Output**: `GeneratedResponse` with text response
+
+### 4. Text-to-Speech Route
+- **Endpoint**: `/api/v1/tts/synthesize`
+- **Input**: Text to convert to speech
+- **Process**:
+  1. Send text to ElevenLabs API
+  2. Generate natural-sounding speech
+- **Output**: Audio file URL and data
+
+### 5. Combined LLM-to-TTS Workflow
+- **Endpoint**: `/api/v1/llm-to-tts/process`
+- **Input**: User text and emotional context
+- **Process**:
+  1. Generate text response with Gemini LLM
+  2. Convert response to speech using ElevenLabs
+- **Output**: `LLMToTTSResponse` with both text and audio URL
+
+### 6. Asynchronous LLM-to-TTS Workflow
+- **Endpoint**: `/api/v1/llm-to-tts/process-async`
+- **Input**: Same as synchronous version
+- **Process**:
+  1. Generate text response immediately
+  2. Queue speech synthesis to run in background
+- **Output**: Immediate text response, audio processed asynchronously
+
+## Data Models and Transfer
+
+- **Audio Models**: `AudioFeatures`, `AudioTranscription`, `AudioEmotionPrediction`
+- **Visual Models**: `FacialFeatures`, `FacialEmotionPrediction`
+- **Response Models**: `GeneratedResponse`, `LLMToTTSResponse`
+- **Combined Models**: `CombinedEmotionAnalysis` (fusion of audio and visual emotions)
+
+This workflow architecture enables multi-modal emotion analysis by combining both audio and visual cues, leading to more accurate empathetic responses.
+</file>
+
+<file path="app/core/config.py">
+import os
+from pydantic import Field
+from pydantic_settings import BaseSettings
+
+class Settings(BaseSettings):
+    """Application settings."""
+    API_V1_STR: str = "/api/v1"
+    PROJECT_NAME: str = "Empathetic Self-talk Coach"
+    
+    # Security settings - update these for production
+    SECRET_KEY: str = Field(default="development_secret_key")
+    
+    # LLM settings - using Gemini
+    LLM_API_KEY: str = Field(default="")
+    LLM_MODEL: str = Field(default="gemini-2.0-flash")  # Using Gemini Pro
+    
+    # ElevenLabs API settings for TTS
+    ELEVENLABS_API_KEY: str = Field(default="")
+    
+    # Legacy TogetherAI API settings (kept for backward compatibility)
+    TOGETHERAI_API_KEY: str = Field(default="")
+    
+    # STT and TTS settings
+    STT_SERVICE: str = Field(default="gemini")  # Using Gemini for STT
+    TTS_SERVICE: str = Field(default="elevenlabs")  # Using ElevenLabs for TTS
+    TTS_VOICE: str = Field(default="21m00Tcm4TlvDq8ikWAM")  # Default ElevenLabs "Rachel" voice ID
+    
+    class Config:
+        env_file = ".env"
+        case_sensitive = True
+
+settings = Settings()
+</file>
+
+<file path="app/models/audio.py">
+from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, Any
+from datetime import datetime
+
+class AudioFeatures(BaseModel):
+    """Model for extracted audio features."""
+    volume: float = Field(..., description="Average volume level")
+    pitch: float = Field(..., description="Average pitch")
+    speaking_rate: float = Field(..., description="Words per minute")
+    pauses: int = Field(..., description="Number of pauses detected")
+    tonal_variation: float = Field(..., description="Measure of tonal variation")
+    
+class AudioEmotionPrediction(BaseModel):
+    """Model for emotion predictions from audio."""
+    emotion: str = Field(..., description="Detected primary emotion")
+    confidence: float = Field(..., description="Confidence score for the prediction")
+    secondary_emotions: Dict[str, float] = Field(default_factory=dict, description="Secondary emotions with confidence scores")
+
+class AudioTranscription(BaseModel):
+    """Model for speech-to-text transcription."""
+    text: str = Field(..., description="Transcribed text")
+    language: str = Field(default="en", description="Detected language")
+    
+class AudioProcessingResult(BaseModel):
+    """Complete result of audio processing."""
+    id: str = Field(..., description="Unique identifier for the processing result")
+    timestamp: datetime = Field(default_factory=datetime.now, description="When the processing was completed")
+    duration: float = Field(..., description="Duration of the audio in seconds")
+    features: AudioFeatures = Field(..., description="Extracted audio features")
+    transcription: AudioTranscription = Field(..., description="Speech-to-text result")
+    emotion_prediction: Optional[AudioEmotionPrediction] = Field(None, description="Emotion prediction if available")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "id": "audio_1234567890",
+                "timestamp": "2023-04-01T12:00:00",
+                "duration": 10.5,
+                "features": {
+                    "volume": 0.75,
+                    "pitch": 220.0,
+                    "speaking_rate": 150.0,
+                    "pauses": 3,
+                    "tonal_variation": 0.6
+                },
+                "transcription": {
+                    "text": "I feel a bit stressed about my upcoming presentation.",
+                    "language": "en"
+                },
+                "emotion_prediction": {
+                    "emotion": "anxiety",
+                    "confidence": 0.85,
+                    "secondary_emotions": {
+                        "nervousness": 0.75,
+                        "fear": 0.45
+                    }
+                }
+            }
+        }
+</file>
+
+<file path="app/models/response.py">
+from pydantic import BaseModel, Field
+from typing import Optional, List, Dict, Any
+from datetime import datetime
+from app.models.audio import AudioEmotionPrediction
+from app.models.visual import FacialEmotionPrediction
+
+class CombinedEmotionAnalysis(BaseModel):
+    """Combined emotion analysis from audio and visual inputs."""
+    audio_emotion: Optional[AudioEmotionPrediction] = Field(None, description="Emotion analysis from audio")
+    visual_emotion: Optional[FacialEmotionPrediction] = Field(None, description="Emotion analysis from facial expressions")
+    overall_emotion: str = Field(..., description="Overall determined emotion")
+    emotion_intensity: float = Field(..., description="Intensity of the emotion (0-1)")
+    emotion_valence: float = Field(..., description="Emotional valence (negative to positive, -1 to 1)")
+    emotion_arousal: float = Field(..., description="Emotional arousal (calm to excited, 0-1)")
+
+class GeneratedResponse(BaseModel):
+    """Model for the empathetic response generated by the LLM."""
+    text: str = Field(..., description="The generated response text")
+    emotion_addressed: str = Field(..., description="The emotion being addressed")
+    response_type: str = Field(..., description="Type of response (validation, reframing, etc.)")
+    alternative_responses: Optional[List[str]] = Field(None, description="Alternative responses that were considered")
+
+class ResponseWithAudio(BaseModel):
+    """Complete response with optional TTS audio."""
+    id: str = Field(..., description="Unique identifier for the response")
+    timestamp: datetime = Field(default_factory=datetime.now, description="When the response was generated")
+    emotion_analysis: CombinedEmotionAnalysis = Field(..., description="Emotion analysis that informed the response")
+    response: GeneratedResponse = Field(..., description="The generated empathetic response")
+    audio_url: Optional[str] = Field(None, description="URL to the TTS audio file if generated")
+    session_id: str = Field(..., description="ID of the session this response belongs to")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "id": "response_1234567890",
+                "timestamp": "2023-04-01T12:01:00",
+                "emotion_analysis": {
+                    "audio_emotion": {
+                        "emotion": "anxiety",
+                        "secondary_emotions": {
+                            "nervousness": 0.75,
+                            "fear": 0.45
+                        }
+                    },
+                    "visual_emotion": {
+                        "emotion": "concern",
+                        "secondary_emotions": {
+                            "fear": 0.45,
+                            "sadness": 0.30
+                        }
+                    },
+                    "overall_emotion": "anxiety",
+                    "emotion_intensity": 0.7,
+                    "emotion_valence": -0.6,
+                    "emotion_arousal": 0.8
+                },
+                "response": {
+                    "text": "I notice you're feeling anxious about your presentation. That's completely understandable - public speaking can be challenging. Remember that feeling nervous means you care about doing well, which is actually a strength. What specific aspect feels most overwhelming right now?",
+                    "emotion_addressed": "anxiety",
+                    "response_type": "validation_with_reframe",
+                    "alternative_responses": [
+                        "It sounds like you're experiencing some anxiety about your presentation. Would you like to talk through some preparation strategies?",
+                        "I'm hearing that you're feeling nervous about presenting. What would help you feel more prepared?"
+                    ]
+                },
+                "audio_url": "https://example.com/tts/response_1234567890.mp3",
+                "session_id": "session_9876543210"
+            }
+        }
+
+class LLMInput(BaseModel):
+    """Pydantic model for input to the LLM service."""
+    text: str = Field(..., description="User's text input to process")
+    emotion: Optional[str] = Field(None, description="Detected primary emotion")
+    context: Optional[Dict[str, Any]] = Field(None, description="Additional context information")
+    session_id: str = Field(..., description="Session identifier for tracking the conversation")
+    max_tokens: Optional[int] = Field(300, description="Maximum number of tokens to generate")
+    temperature: Optional[float] = Field(0.7, description="Temperature for response generation")
+
+class LLMToTTSResponse(BaseModel):
+    """Response model for the LLM to TTS workflow."""
+    response_id: str = Field(..., description="Unique identifier for this response")
+    llm_text: str = Field(..., description="Text generated by the LLM")
+    audio_url: Optional[str] = Field(None, description="URL to access the generated audio")
+    session_id: str = Field(..., description="Session identifier for tracking")
+    emotion: Optional[str] = Field(None, description="Emotion detected or processed")
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
+</file>
+
+<file path="app/routers/api.py">
+from fastapi import APIRouter
+from app.core.config import settings
+from app.routers import audio, tts, response, llm_to_tts
+
+# Create the main API router
+api_router = APIRouter()
+
+# Include our routers
+api_router.include_router(audio.router, prefix="/audio", tags=["Audio Processing"])
+api_router.include_router(tts.router, prefix="/tts", tags=["Text-to-Speech"])
+api_router.include_router(response.router, prefix="/response", tags=["Response Generation"])
+api_router.include_router(llm_to_tts.router, prefix="/llm-to-tts", tags=["LLM to TTS Workflow"])
+
+# Create empty stubs for visual/facial processing
+@api_router.get("/visual/status")
+async def visual_status():
+    """Placeholder for visual processing status endpoint."""
+    return {"status": "not implemented"}
+
+@api_router.get("/emotion/status")
+async def emotion_status():
+    """Placeholder for emotion classification status endpoint."""
+    return {"status": "not implemented"}
+
+@api_router.get("/response/status")
+async def response_status():
+    """Placeholder for LLM response generation status endpoint."""
+    return {"status": "not implemented"}
+
+@api_router.get("/tts/status")
+async def tts_status():
+    """Placeholder for text-to-speech status endpoint."""
+    return {"status": "not implemented"}
+</file>
+
+<file path="app/routers/audio.py">
+from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
+from typing import Optional
+from app.services.audio_service import audio_service
+from app.models.audio import AudioProcessingResult
+
+# Create router
+router = APIRouter()
+
+@router.post("/process", response_model=AudioProcessingResult)
+async def process_audio(
+    audio: UploadFile = File(...),
+    duration: float = Form(...),
+):
+    """
+    Process an audio file for transcription and emotion classification.
+    
+    This endpoint initiates two parallel processes:
+    1. Sends the audio to Gemini API for speech-to-text transcription
+    2. Logs the audio for emotion classification (classifier in development)
+    
+    Args:
+        audio: The audio file (supported formats: WAV, MP3, FLAC)
+        duration: Duration of the audio in seconds
+        
+    Returns:
+        Processed audio data with transcription and placeholder for emotion analysis
+    """
+    # Validate file type
+    if audio.content_type not in ["audio/wav", "audio/mpeg", "audio/flac", "audio/mp3"]:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Unsupported file type: {audio.content_type}. Supported types: WAV, MP3, FLAC"
+        )
+    
+    try:
+        # Process the audio using the audio service
+        # This will:
+        # 1. Log the audio for the classifier (currently in development)
+        # 2. Send the audio to Gemini for transcription
+        print(f"Processing audio file: {audio.filename} (duration: {duration}s)")
+        result = await audio_service.process_audio(audio.file, duration)
+        return result
+    except Exception as e:
+        # Log the error
+        print(f"Error processing audio: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing audio: {str(e)}")
+
+@router.get("/status")
+async def audio_status():
+    """Get the status of the audio processing service."""
+    return {
+        "status": "operational",
+        "services": {
+            "speech_to_text": "active - using Gemini API",
+            "emotion_classification": "in development"
+        }
+    }
+</file>
+
+<file path="app/services/audio_service.py">
+import uuid
+from datetime import datetime
+from typing import Optional, Dict, Any, BinaryIO
+from app.models.audio import AudioFeatures, AudioEmotionPrediction, AudioTranscription, AudioProcessingResult
+from app.services.stt_service import stt_service
+from app.utils.logging import response_logger
+
+class AudioService:
+    """Service for processing audio data and extracting features and emotions."""
+    
+    async def process_audio(self, audio_file: BinaryIO, duration: float) -> AudioProcessingResult:
+        """
+        Process an audio file to extract features, transcribe speech, and predict emotions.
+        
+        Args:
+            audio_file: The audio file stream
+            duration: Duration of the audio in seconds
+            
+        Returns:
+            AudioProcessingResult with extracted features and analysis
+        """
+        # Create a unique ID for this processing result
+        processing_id = f"audio_{uuid.uuid4().hex[:10]}"
+        
+        # Log that we received audio for classification
+        print("Audio was received by classifier")
+        
+        # Transcribe speech using our STT service
+        transcription = await stt_service.transcribe(audio_file)
+        
+        # Log the transcription
+        response_logger.log_transcription(
+            audio_id=processing_id,
+            text=transcription.text,
+            metadata={"language": transcription.language, "duration": duration}
+        )
+        
+        # Create simple feature placeholder (to maintain structure)
+        features = AudioFeatures(
+            volume=0.0,
+            pitch=0.0,
+            speaking_rate=0.0,
+            pauses=0,
+            tonal_variation=0.0
+        )
+        
+        # Create simple emotion prediction placeholder (to maintain structure)
+        emotion_prediction = AudioEmotionPrediction(
+            emotion="pending",
+            confidence=0.0,
+            secondary_emotions={}
+        )
+        
+        # Return the complete processing result
+        return AudioProcessingResult(
+            id=processing_id,
+            timestamp=datetime.now(),
+            duration=duration,
+            features=features,
+            transcription=transcription,
+            emotion_prediction=emotion_prediction
+        )
+
+# Create a singleton instance
+audio_service = AudioService()
+</file>
+
+<file path="app/services/elevenlabs_service.py">
+import os
+import requests
+import uuid
+from typing import Optional, Dict, Any, Tuple
+from app.core.config import settings
+from app.utils.logging import response_logger
+
+class ElevenLabsService:
+    """Service for Text-to-Speech synthesis using ElevenLabs API."""
+    
+    def __init__(self):
+        self.api_key = settings.ELEVENLABS_API_KEY
+        self.base_url = "https://api.elevenlabs.io/v1/text-to-speech"
+        self.headers = {
+            "xi-api-key": self.api_key,
+            "Content-Type": "application/json"
+        }
+        self.output_dir = "static/audio"
+        
+        # Create output directory if it doesn't exist
+        os.makedirs(self.output_dir, exist_ok=True)
+    
+    async def synthesize_speech(self, text: str, voice_id: Optional[str] = None, response_id: Optional[str] = None) -> Tuple[Optional[str], Optional[str]]:
+        """
+        Synthesize text to speech using ElevenLabs API.
+        
+        Args:
+            text: The text to convert to speech
+            voice_id: The voice ID to use (defaults to settings.TTS_VOICE)
+            response_id: Optional ID to associate with this synthesis
+            
+        Returns:
+            Tuple of (static URL path, full file path)
+        """
+        if not response_id:
+            response_id = f"tts_{uuid.uuid4().hex[:10]}"
+            
+        if not self.api_key:
+            # Return mock audio path if no API key is provided
+            print("❌ No ElevenLabs API key provided, using mock audio")
+            return None, None
+        
+        try:
+            # Get the voice ID to use (default or specified)
+            voice_id = voice_id or settings.TTS_VOICE or "21m00Tcm4TlvDq8ikWAM"  # Default to ElevenLabs "Rachel" voice
+            
+            # Prepare the request data, Note to future self: We need to add more information here to make each 
+            data = {
+                "text": text,
+                "model_id": "eleven_monolingual_v1",
+                "voice_settings": {
+                    "stability": 0.5,
+                    "similarity_boost": 0.75
+                }
+            }
+            
+            # Make API request to ElevenLabs
+            endpoint_url = f"{self.base_url}/{voice_id}"
+            
+            response = requests.post(
+                endpoint_url,
+                json=data,
+                headers=self.headers
+            )
+            
+            # Check for successful response
+            response.raise_for_status()
+            
+            # Generate a unique filename
+            timestamp = uuid.uuid4().hex[:6]
+            audio_filename = f"{response_id}_{timestamp}.mp3"
+            
+            # Save to static directory (for API access)
+            static_file_path = f"{self.output_dir}/{audio_filename}"
+            
+            with open(static_file_path, "wb") as f:
+                f.write(response.content)
+            
+            # Also save to output directory for logging
+            output_path = response_logger.save_audio_file(
+                audio_data=response.content,
+                response_id=response_id,
+                tts_source="elevenlabs"
+            )
+            
+            # Return the URL path for API responses
+            return f"/audio/{audio_filename}", output_path
+            
+        except Exception as e:
+            print(f"❌ Error in ElevenLabs service: {str(e)}")
+            if isinstance(e, requests.exceptions.RequestException) and hasattr(e, 'response') and e.response is not None:
+                print(f"Response status: {e.response.status_code}")
+                print(f"Response content: {e.response.text[:200]}")
+            # Return mock audio path on error
+            static_path, full_path = self._get_mock_audio_path(response_id)
+            return static_path, full_path
+    
+    def _get_mock_audio_path(self, response_id: str = "mock") -> Tuple[str, str]:
+        """Return mock audio paths for testing."""
+        # Create a unique filename for this response
+        audio_filename = f"{response_id}_mock.mp3"
+        static_file_path = f"{self.output_dir}/{audio_filename}"
+        
+        # Copy the mock audio file to a unique filename if it doesn't exist
+        if not os.path.exists(static_file_path) and os.path.exists(f"{self.output_dir}/mock_tts.mp3"):
+            with open(f"{self.output_dir}/mock_tts.mp3", "rb") as src:
+                with open(static_file_path, "wb") as dst:
+                    dst.write(src.read())
+        else:
+            # Create a simple MP3 file with minimal data
+            mock_audio = b"\xFF\xFB\x90\x44\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+            with open(static_file_path, "wb") as f:
+                f.write(mock_audio)
+        
+        return f"/audio/{audio_filename}", static_file_path
+
+# Create singleton instance
+elevenlabs_service = ElevenLabsService()
+</file>
+
+<file path="app/services/llm_service.py">
+import os
+import json
+import uuid
+from typing import Dict, Any, List, Optional, Tuple
+import requests
+from app.core.config import settings
+from app.utils.logging import response_logger
+from app.models.response import LLMInput
+
+class LLMService:
+    """Service for generating responses using Google's Gemini models."""
+    
+    def __init__(self):
+        self.api_key = settings.LLM_API_KEY
+        self.model = settings.LLM_MODEL
+        self.base_url = "https://generativelanguage.googleapis.com/v1/models"
+        print(f"🔑 LLM API Key present: {bool(self.api_key)}")
+        print(f"🤖 Using LLM model: {self.model}")
+        
+    async def generate_response(
+        self, 
+        prompt: str, 
+        emotion: str = None, 
+        temperature: float = 0.7,
+        max_tokens: int = 300
+    ) -> Tuple[str, str]:
+        """
+        Generate an empathetic response using Gemini.
+        
+        Args:
+            prompt: The user's text to respond to
+            emotion: Optional detected emotion to address (not required)
+            temperature: Controls randomness (higher = more random)
+            max_tokens: Maximum number of tokens to generate
+            
+        Returns:
+            Tuple of (generated response text, response_id)
+        """
+        # Create a unique ID for this response
+        response_id = f"gemini_{uuid.uuid4().hex[:10]}"
+        
+        if not self.api_key:
+            print("❌ No LLM API key provided, please set LLM_API_KEY in .env file")
+            # Return mock response if no API key is provided
+            response_text = self._get_mock_response(emotion)
+            
+            # Log the mock response
+            response_logger.log_response(
+                response_id=response_id,
+                emotion=emotion or "unknown",
+                user_text=prompt,
+                response_text=response_text,
+                metadata={"is_mock": True, "reason": "No API key"}
+            )
+            
+            return response_text, response_id
+        
+        try:
+            # Prepare the full prompt with empathetic instructions
+            full_prompt = self._prepare_empathetic_prompt(prompt, emotion)
+            
+            # Construct the API endpoint URL with the model name and API key
+            url = f"{self.base_url}/{self.model}:generateContent?key={self.api_key}"
+            print(f"🌐 Sending request to Gemini API: {self.model}")
+            
+            # Prepare the request data
+            data = {
+                "contents": [
+                    {
+                        "parts": [
+                            {
+                                "text": full_prompt
+                            }
+                        ]
+                    }
+                ],
+                "generationConfig": {
+                    "temperature": temperature,
+                    "maxOutputTokens": max_tokens,
+                    "topP": 0.95,
+                    "topK": 40
+                }
+            }
+            
+            # Make API request
+            response = requests.post(
+                url,
+                json=data,
+                headers={"Content-Type": "application/json"}
+            )
+            
+            # Check for successful response
+            response.raise_for_status()
+            result = response.json()
+            
+            # Debug the response
+            print(f"✅ Gemini API response received, status: {response.status_code}")
+            
+            # Extract the generated text from the response
+            if "candidates" in result and len(result["candidates"]) > 0:
+                generated_text = result["candidates"][0]["content"]["parts"][0]["text"]
+                response_text = generated_text.strip()
+                print(f"✅ Generated text (first 50 chars): {response_text[:50]}...")
+            else:
+                print("❌ No candidates in Gemini response, response data:")
+                print(json.dumps(result, indent=2)[:200] + "...")
+                # Fallback to mock if no valid response
+                response_text = self._get_mock_response(emotion)
+                print("⚠️ Using mock response as fallback")
+            
+            # Log the response
+            response_logger.log_response(
+                response_id=response_id,
+                emotion=emotion or "unknown",
+                user_text=prompt,
+                response_text=response_text,
+                metadata={
+                    "model": self.model, 
+                    "temperature": temperature,
+                    "is_mock": "candidates" not in result or len(result["candidates"]) == 0
+                }
+            )
+            
+            return response_text, response_id
+            
+        except Exception as e:
+            print(f"❌ Error in LLM service: {str(e)}")
+            if isinstance(e, requests.exceptions.RequestException) and hasattr(e, 'response') and e.response is not None:
+                print(f"Response status: {e.response.status_code}")
+                print(f"Response content: {e.response.text[:200]}")
+            
+            # Fallback to mock response on error
+            response_text = self._get_mock_response(emotion)
+            print("⚠️ Using mock response due to error")
+            
+            # Log the fallback response
+            response_logger.log_response(
+                response_id=response_id,
+                emotion=emotion or "unknown",
+                user_text=prompt,
+                response_text=response_text,
+                metadata={"error": str(e), "is_fallback": True}
+            )
+            
+            return response_text, response_id
+    
+    async def process_llm_input(self, llm_input: LLMInput) -> Tuple[str, str]:
+        """
+        Process a structured LLM input and generate a response using Gemini.
+        
+        Args:
+            llm_input: A structured input containing text, emotion, and other parameters
+            
+        Returns:
+            Tuple of (generated response text, response_id)
+        """
+        # Create a unique ID for this response
+        response_id = f"gemini_{uuid.uuid4().hex[:10]}"
+        
+        if not self.api_key:
+            print("❌ No LLM API key provided, please set LLM_API_KEY in .env file")
+            # Return mock response if no API key is provided
+            response_text = self._get_mock_response(llm_input.emotion)
+            
+            # Log the mock response
+            response_logger.log_response(
+                response_id=response_id,
+                emotion=llm_input.emotion or "unknown",
+                user_text=llm_input.text,
+                response_text=response_text,
+                metadata={"is_mock": True, "reason": "No API key"}
+            )
+            
+            return response_text, response_id
+        
+        try:
+            # Prepare the full prompt with empathetic instructions
+            full_prompt = self._prepare_empathetic_prompt(llm_input.text, llm_input.emotion)
+            
+            # Construct the API endpoint URL with the model name and API key
+            url = f"{self.base_url}/{self.model}:generateContent?key={self.api_key}"
+            print(f"🌐 Sending request to Gemini API: {self.model}")
+            
+            # Prepare the request data
+            data = {
+                "contents": [
+                    {
+                        "parts": [
+                            {
+                                "text": full_prompt
+                            }
+                        ]
+                    }
+                ],
+                "generationConfig": {
+                    "temperature": llm_input.temperature,
+                    "maxOutputTokens": llm_input.max_tokens,
+                    "topP": 0.95,
+                    "topK": 40
+                }
+            }
+            
+            # Make API request
+            response = requests.post(
+                url,
+                json=data,
+                headers={"Content-Type": "application/json"}
+            )
+            
+            # Check for successful response
+            response.raise_for_status()
+            result = response.json()
+            
+            # Debug the response
+            print(f"✅ Gemini API response received, status: {response.status_code}")
+            
+            # Extract the generated text from the response
+            if "candidates" in result and len(result["candidates"]) > 0:
+                generated_text = result["candidates"][0]["content"]["parts"][0]["text"]
+                response_text = generated_text.strip()
+                print(f"✅ Generated text (first 50 chars): {response_text[:50]}...")
+            else:
+                print("❌ No candidates in Gemini response, response data:")
+                print(json.dumps(result, indent=2)[:200] + "...")
+                # Fallback to mock if no valid response
+                response_text = self._get_mock_response(llm_input.emotion)
+                print("⚠️ Using mock response as fallback")
+            
+            # Log the response
+            response_logger.log_response(
+                response_id=response_id,
+                emotion=llm_input.emotion or "unknown",
+                user_text=llm_input.text,
+                response_text=response_text,
+                metadata={
+                    "model": self.model, 
+                    "temperature": llm_input.temperature,
+                    "session_id": llm_input.session_id,
+                    "is_mock": "candidates" not in result or len(result["candidates"]) == 0
+                }
+            )
+            
+            return response_text, response_id
+            
+        except Exception as e:
+            print(f"❌ Error in LLM service: {str(e)}")
+            if isinstance(e, requests.exceptions.RequestException) and hasattr(e, 'response') and e.response is not None:
+                print(f"Response status: {e.response.status_code}")
+                print(f"Response content: {e.response.text[:200]}")
+            
+            # Fallback to mock response on error
+            response_text = self._get_mock_response(llm_input.emotion)
+            print("⚠️ Using mock response due to error")
+            
+            # Log the fallback response
+            response_logger.log_response(
+                response_id=response_id,
+                emotion=llm_input.emotion or "unknown",
+                user_text=llm_input.text,
+                response_text=response_text,
+                metadata={"error": str(e), "is_fallback": True}
+            )
+            
+            return response_text, response_id
+    
+    def _prepare_empathetic_prompt(self, prompt: str, emotion: str = None) -> str:
+        """Prepare a complete prompt with empathetic instructions."""
+        emotion_guidance = f"The user is experiencing {emotion}. Be particularly sensitive to this emotion in your response." if emotion else "Respond with general empathy."
+        
+        return f"""You are an empathetic AI assistant designed to provide supportive and helpful responses.
+
+Your task is to respond to the following message with genuine empathy and understanding.
+
+User's message: "{prompt}"
+
+{emotion_guidance}
+
+Keep your response concise (2-3 sentences), conversational, and genuinely supportive. Be warm and understanding without being judgmental. Don't include phrases like "I understand" or "I'm sorry to hear that" - instead, show empathy through your specific response to their situation.
+"""
+    
+    def _get_mock_response(self, emotion: str = None) -> str:
+        """Return a mock response for testing or when API is unavailable."""
+        print("⚠️ Using mock response - this should only happen when API is unavailable")
+        responses = {
+            "anxiety": "I notice you're feeling anxious. That's completely understandable - we all feel anxious at times. What specific aspect feels most overwhelming right now?",
+            "sadness": "I can hear that you're feeling sad. It's okay to feel this way, and giving yourself space to experience these emotions is important. What might help you feel a bit more supported right now?",
+            "anger": "I can sense your frustration. It's valid to feel angry when things don't go as expected. Would it help to talk about what triggered these feelings?",
+            "fear": "Feeling afraid is a natural response when facing uncertainty. Your concerns are valid. What small step might help you feel a bit more secure in this situation?",
+            "joy": "It's wonderful to hear you're feeling happy! These positive moments are worth savoring. What aspect of this experience feels most meaningful to you?",
+            "default": "I'm here to listen and support you. Your feelings are valid, and I appreciate you sharing them. How can I best support you right now?"
+        }
+        
+        if not emotion:
+            return responses["default"]
+        return responses.get(emotion.lower(), responses["default"])
+
+# Create a singleton instance
+llm_service = LLMService()
+</file>
+
+<file path="app/services/stt_service.py">
+import requests
+import json
+import base64
+import os
+from typing import BinaryIO, Dict, Any, Optional
+from app.core.config import settings
+from app.models.audio import AudioTranscription
+
+class STTService:
+    """Service for Speech-to-Text transcription using Gemini."""
+    
+    def __init__(self):
+        self.api_key = settings.LLM_API_KEY  # Using Gemini API key
+        self.base_url = "https://generativelanguage.googleapis.com/v1/models"
+        self.model = "gemini-2.0-flash-lite"  # Using flash lite model for faster audio transcription
+    
+    async def transcribe(self, audio_file: BinaryIO) -> AudioTranscription:
+        """
+        Transcribe speech from audio file using Gemini.
+        
+        Args:
+            audio_file: The audio file to transcribe
+            
+        Returns:
+            AudioTranscription with the transcribed text and confidence
+        """
+        if not self.api_key:
+            # Fallback to mock implementation if no API key is provided
+            return await self._mock_transcribe()
+        
+        try:
+            # Reset file pointer to beginning
+            audio_file.seek(0)
+            
+            # Read the audio data and encode it
+            audio_data = audio_file.read()
+            audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+            
+            # Construct a detailed prompt for accurate transcription
+            prompt = """What does this audio say? 
+
+Your task is to transcribe the spoken content in this audio file with complete accuracy.
+
+INSTRUCTIONS:
+1. Transcribe EXACTLY what is spoken, word for word.
+2. Include all filler words (um, uh, like, you know, etc.).
+3. Format as plain text only.
+4. Do not add any commentary, descriptions, or explanations.
+5. Do not add timestamps or speaker identifications.
+6. Do not include any text before or after the transcription.
+7. Preserve natural pauses with commas and periods.
+8. If parts are unclear, make your best guess.
+
+REPLY WITH THE TRANSCRIPTION ONLY."""
+            
+            # Construct the API endpoint URL
+            url = f"{self.base_url}/{self.model}:generateContent?key={self.api_key}"
+            
+            # Prepare the request data
+            data = {
+                "contents": [
+                    {
+                        "parts": [
+                            {
+                                "text": prompt
+                            },
+                            {
+                                "inline_data": {
+                                    "mime_type": "audio/wav",  # Adjust if using different format
+                                    "data": audio_base64
+                                }
+                            }
+                        ]
+                    }
+                ],
+                "generationConfig": {
+                    "temperature": 0.1,  # Low temperature for exact transcription
+                    "maxOutputTokens": 1024,  # Increased for longer transcriptions
+                    "topP": 0.95,
+                    "topK": 40
+                }
+            }
+            
+            # Make API request
+            print("Sending audio to Gemini for transcription...")
+            response = requests.post(
+                url,
+                json=data,
+                headers={"Content-Type": "application/json"}
+            )
+            
+            # Check for successful response
+            response.raise_for_status()
+            result = response.json()
+            
+            # Extract the transcribed text from the response
+            if "candidates" in result and len(result["candidates"]) > 0:
+                transcribed_text = result["candidates"][0]["content"]["parts"][0]["text"]
+                transcribed_text = transcribed_text.strip()
+                
+                print(f"Gemini Transcription successful. Length: {len(transcribed_text)} characters")
+                
+                # Create AudioTranscription from result
+                return AudioTranscription(
+                    text=transcribed_text,
+                    language="en"
+                )
+            else:
+                print("Gemini returned no transcription candidates")
+                # Fallback to mock if no valid response
+                return await self._mock_transcribe()
+            
+        except Exception as e:
+            print(f"Error in Gemini STT service: {str(e)}")
+            if hasattr(e, 'response') and e.response is not None:
+                print(f"Response status: {e.response.status_code}")
+                print(f"Response content: {e.response.text[:200]}")
+            # Fallback to mock implementation on error
+            return await self._mock_transcribe()
+    
+    async def _mock_transcribe(self) -> AudioTranscription:
+        """Mock implementation for testing or when API is unavailable."""
+        print("Using mock transcription (Gemini API unavailable or error occurred)")
+        # This is just a placeholder - in production, we'd integrate with the actual Gemini response
+        test_transcriptions = [
+            "I'm feeling really anxious about my presentation tomorrow.",
+            "Can you help me understand why I feel so stressed all the time?",
+            "I had a really good day today, everything went perfectly.",
+            "I need some advice on how to handle difficult conversations with my colleagues."
+        ]
+        import random
+        mock_text = random.choice(test_transcriptions)
+        return AudioTranscription(
+            text=mock_text,
+            language="en"
+        )
+
+# Create a singleton instance
+stt_service = STTService()
+</file>
+
+<file path="app/utils/logging.py">
+import os
+import json
+import datetime
+from pathlib import Path
+
+class ResponseLogger:
+    """Utility to log and save responses from various API calls."""
+    
+    def __init__(self):
+        self.logs_dir = "logs"
+        self.transcriptions_dir = os.path.join(self.logs_dir, "transcriptions")
+        self.responses_dir = os.path.join(self.logs_dir, "responses")
+        self.audio_output_dir = "output/audio"
+        
+        # Create directories if they don't exist
+        for directory in [self.logs_dir, self.transcriptions_dir, self.responses_dir, self.audio_output_dir]:
+            os.makedirs(directory, exist_ok=True)
+    
+    def log_transcription(self, audio_id: str, text: str, metadata: dict = None):
+        """Log a transcription result to a file."""
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{timestamp}_{audio_id}_transcription.json"
+        filepath = os.path.join(self.transcriptions_dir, filename)
+        
+        data = {
+            "audio_id": audio_id,
+            "timestamp": timestamp,
+            "text": text
+        }
+        
+        if metadata:
+            data["metadata"] = metadata
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2)
+        
+        print(f"\n===== TRANSCRIPTION [{audio_id}] =====")
+        print(f"Text: {text}")
+        print("====================================\n")
+        
+        return filepath
+    
+    def log_response(self, response_id: str, emotion: str, user_text: str, response_text: str, metadata: dict = None):
+        """Log a Gemini response to a file."""
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{timestamp}_{response_id}_response.json"
+        filepath = os.path.join(self.responses_dir, filename)
+        
+        data = {
+            "response_id": response_id,
+            "timestamp": timestamp,
+            "emotion": emotion,
+            "user_text": user_text,
+            "response_text": response_text
+        }
+        
+        if metadata:
+            data["metadata"] = metadata
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2)
+        
+        print(f"\n===== GEMINI RESPONSE [{response_id}] =====")
+        print(f"User: {user_text}")
+        print(f"Emotion: {emotion}")
+        print(f"Response: {response_text}")
+        print("========================================\n")
+        
+        return filepath
+    
+    def save_audio_file(self, audio_data: bytes, response_id: str, tts_source: str):
+        """Save TTS audio to the output directory."""
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"{timestamp}_{response_id}_{tts_source}.mp3"
+        filepath = os.path.join(self.audio_output_dir, filename)
+        
+        with open(filepath, 'wb') as f:
+            f.write(audio_data)
+        
+        print(f"\n===== TTS AUDIO SAVED [{response_id}] =====")
+        print(f"File: {filepath}")
+        print("===================================\n")
+        
+        return filepath
+
+# Create a singleton instance
+response_logger = ResponseLogger()
+</file>
+
+<file path=".gitignore">
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+ven/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment variables
+.env
+.env.local
+
+# Logs
+logs/
+*.log
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# OS specific
+.DS_Store
+Thumbs.db 
+/static
+/output
+</file>
+
+<file path="app/routers/response.py">
+from fastapi import APIRouter, HTTPException, File, UploadFile, Form, BackgroundTasks
+from typing import Optional, List
+from pydantic import BaseModel, Field
+from app.models.response import GeneratedResponse, CombinedEmotionAnalysis, ResponseWithAudio
+from app.services.llm_service import llm_service
+from app.services.tts_service import tts_service
+from app.services.stt_service import stt_service
+import uuid
+from datetime import datetime
+import os
+
+# Pydantic models for request and response
+class ResponseRequest(BaseModel):
+    text: str = Field(..., description="User's text input")
+    emotion: Optional[str] = Field(None, description="Detected primary emotion")
+    emotion_analysis: Optional[CombinedEmotionAnalysis] = Field(None, description="Full emotion analysis if available")
+    session_id: str = Field(..., description="Session identifier for context tracking")
+    generate_audio: bool = Field(False, description="Whether to generate TTS audio")
+    voice: Optional[str] = Field(None, description="Voice to use for TTS if generating audio")
+
+class AudioResponseRequest(BaseModel):
+    session_id: str = Field(..., description="Session identifier for context tracking")
+    generate_audio: bool = Field(True, description="Whether to generate TTS audio")
+    voice: Optional[str] = Field(None, description="Voice to use for TTS if generating audio")
+
+# Create router
+router = APIRouter()
+
+@router.post("/generate", response_model=ResponseWithAudio)
+async def generate_response(request: ResponseRequest):
+    """
+    Generate an empathetic response using Gemini with optional TTS.
+    
+    Args:
+        request: ResponseRequest with user input and emotion data
+        
+    Returns:
+        ResponseWithAudio with the generated response and optional audio URL
+    """
+    try:
+        # Generate response text using the LLM service
+        response_text, response_id = await llm_service.generate_response(
+            prompt=request.text,
+            emotion=request.emotion
+        )
+        
+        if not response_text:
+            raise HTTPException(
+                status_code=500, 
+                detail="Failed to generate response"
+            )
+        
+        # Create a GeneratedResponse object
+        generated_response = GeneratedResponse(
+            text=response_text,
+            emotion_addressed=request.emotion,
+            response_type="validation_with_reframe",  # Default type
+            confidence=0.9  # Mock confidence value
+        )
+        
+        # Generate audio if requested
+        audio_url = None
+        if request.generate_audio:
+            audio_url, full_path = await tts_service.synthesize(
+                text=response_text, 
+                voice=request.voice,
+                response_id=response_id
+            )
+        
+        # Use the provided emotion analysis or create a basic one
+        emotion_analysis = request.emotion_analysis
+        if not emotion_analysis:
+            # Create a simple emotion analysis based on the provided emotion
+            emotion_analysis = CombinedEmotionAnalysis(
+                overall_emotion=request.emotion or "unknown",
+                confidence=0.8,
+                emotion_intensity=0.7,
+                emotion_valence=-0.5 if request.emotion in ["anxiety", "sadness", "anger", "fear"] else 0.5,
+                emotion_arousal=0.8 if request.emotion in ["anxiety", "anger", "joy"] else 0.3
+            )
+        
+        # Return the complete response
+        return ResponseWithAudio(
+            id=response_id,
+            timestamp=datetime.now(),
+            emotion_analysis=emotion_analysis,
+            response=generated_response,
+            audio_url=audio_url,
+            session_id=request.session_id
+        )
+        
+    except Exception as e:
+        # Log the error in a real application
+        raise HTTPException(status_code=500, detail=f"Error generating response: {str(e)}")
+
+@router.post("/audio-pipeline", response_model=ResponseWithAudio)
+async def audio_to_response_pipeline(
+    background_tasks: BackgroundTasks,
+    audio: UploadFile = File(...),
+    session_id: str = Form(...),
+    generate_audio: bool = Form(True),
+    voice: Optional[str] = Form(None)
+):
+    """
+    Complete audio-to-text-to-audio pipeline:
+    1. Transcribe audio using Gemini
+    2. Generate empathetic response using Gemini
+    3. Convert response to speech using TogetherAI
+    
+    Args:
+        audio: Audio file with user's speech
+        session_id: Session identifier
+        generate_audio: Whether to generate TTS audio
+        voice: Voice to use for TTS
+        
+    Returns:
+        ResponseWithAudio with the full pipeline results
+    """
+    try:
+        # Step 1: Transcribe audio using Gemini
+        transcription = await stt_service.transcribe(audio.file)
+        user_text = transcription.text
+        
+        if not user_text:
+            raise HTTPException(
+                status_code=400,
+                detail="Could not transcribe audio. Please try again with a clearer recording."
+            )
+        
+        print(f"Transcribed text: {user_text}")
+        
+        # Step 2: Generate response using Gemini
+        response_text, response_id = await llm_service.generate_response(prompt=user_text)
+        
+        if not response_text:
+            raise HTTPException(
+                status_code=500, 
+                detail="Failed to generate response"
+            )
+        
+        print(f"Generated response: {response_text}")
+        
+        # Create a GeneratedResponse object
+        generated_response = GeneratedResponse(
+            text=response_text,
+            emotion_addressed="unspecified",
+            response_type="empathetic_response",
+            confidence=0.9
+        )
+        
+        # Step 3: Generate audio response if requested
+        audio_url = None
+        if generate_audio:
+            audio_url, full_path = await tts_service.synthesize(
+                text=response_text, 
+                voice=voice,
+                response_id=response_id
+            )
+            print(f"Generated audio saved at: {full_path}")
+        
+        # Create a basic emotion analysis
+        emotion_analysis = CombinedEmotionAnalysis(
+            overall_emotion="unspecified",
+            confidence=0.8,
+            emotion_intensity=0.5,
+            emotion_valence=0.0,
+            emotion_arousal=0.5
+        )
+        
+        # Return the complete response
+        return ResponseWithAudio(
+            id=response_id,
+            timestamp=datetime.now(),
+            emotion_analysis=emotion_analysis,
+            response=generated_response,
+            audio_url=audio_url,
+            session_id=session_id
+        )
+    
+    except Exception as e:
+        print(f"Error in audio pipeline: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing audio: {str(e)}")
+
+@router.get("/status")
+async def response_status():
+    """Get the status of the response generation service."""
+    return {
+        "status": "operational",
+        "llm": "Gemini",
+        "models_available": True,
+        "audio_pipeline": "enabled"
+    }
+</file>
+
+<file path="README.md">
+# Mirror Mirror on the Wall: Empathetic Self-talk Coach
+
+## Project Overview
+An AI-powered empathetic self-talk coach application that processes audio and visual inputs to understand emotional states and provide supportive, empathetic responses.
+
+## Features
+- Audio processing pipeline for speech capture and analysis
+- Visual processing for facial expression analysis
+- Emotion classification from combined inputs
+- LLM-generated empathetic responses
+- Text-to-Speech for audio feedback
+
+## Workflow Architecture
+Our application processes two types of input:
+
+### 1. Audio Input Processing
+Audio input goes through two parallel processes:
+- **Speech-to-Text (STT)**: Using Google's Gemini API, we convert spoken language into text that can be analyzed and responded to.
+- **Tone Analysis**: The audio is analyzed to detect emotional patterns in the user's voice (pitch, volume, speaking rate, pauses, etc.).
+
+### 2. Video Input Processing
+- **Facial Expression Analysis**: Using Meta DeepFace technology, we analyze facial expressions to detect emotions.
+- **Feature Extraction**: We track facial landmarks, eye openness, mouth position, and head pose to enhance emotion detection.
+
+### 3. Multi-modal Emotion Classification
+- Results from both audio and visual analyses are combined to produce a more accurate emotional assessment.
+- This hybrid approach allows for better understanding of the user's emotional state than either method alone.
+
+### 4. Response Generation
+- Emotional assessment and transcribed text are sent to Gemini LLM.
+- The LLM generates an empathetic, supportive response tailored to the user's emotional state.
+
+### 5. Text-to-Speech Conversion
+- The text response is converted to speech using ElevenLabs' advanced TTS service.
+- The spoken response is delivered to the user, completing the interaction loop.
+
+## Setup Instructions
+
+### Prerequisites
+- Python 3.10+
+- Docker and Docker Compose (optional, for containerized setup)
+
+### Local Development Setup
+1. Clone the repository:
+   ```
+   git clone https://github.com/yourusername/CMPT419_Project.git
+   cd CMPT419_Project
+   ```
+
+2. Create a virtual environment:
+   ```
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+3. Install dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
+
+4. Run the development server:
+   ```
+   uvicorn app.main:app --reload
+   ```
+
+5. Configure API Keys:
+   Create a `.env` file in the root directory with the following variables:
+   ```
+   LLM_API_KEY=your-gemini-api-key
+   ELEVENLABS_API_KEY=your-elevenlabs-api-key
+   ```
+
+   You'll need to obtain API keys from:
+   - [Google AI Studio](https://ai.google.dev/) for Gemini
+   - [ElevenLabs](https://elevenlabs.io/) for text-to-speech
+
+### Docker Development Setup
+1. Build and start the containers:
+   ```
+   docker-compose up --build
+   ```
+
+## Testing the Audio Processing Workflow
+
+We've implemented a basic audio processing workflow that:
+1. Takes audio input
+2. Sends it to Gemini for speech-to-text transcription
+3. Logs it for emotion classification (classifier currently in development)
+
+To test this workflow:
+
+1. Make sure the server is running:
+   ```
+   uvicorn app.main:app --reload
+   ```
+
+2. Run the test script:
+   ```
+   python test_audio_workflow.py
+   ```
+   This will use a sample audio file from the test_files directory and send it to the API.
+
+3. Alternatively, test via the Swagger UI:
+   - Open http://localhost:8000/docs
+   - Navigate to the `/api/v1/audio/process` endpoint
+   - Upload an audio file and set the duration
+   - Click "Execute"
+
+## API Documentation
+Once the server is running, you can access the API documentation at:
+- Swagger UI: http://localhost:8000/docs
+- ReDoc: http://localhost:8000/redoc
+
+## Running Tests
+Run tests using pytest:
+```
+pytest app/tests/
+```
+
+## Project Structure
+```
+app/
+├── core/           # Application core modules and configuration
+├── models/         # Pydantic models for request/response schemas
+│   ├── audio.py    # Models for audio processing
+│   ├── visual.py   # Models for visual/facial processing
+│   └── response.py # Models for LLM responses and combined data
+├── routers/        # API route handlers
+│   ├── audio.py    # Audio processing endpoints
+│   ├── llm_to_tts.py # Combined LLM and TTS workflow
+│   ├── response.py # Response generation endpoints
+│   └── tts.py      # Text-to-speech endpoints
+├── services/       # Business logic implementation
+│   ├── audio_service.py # Audio processing service
+│   ├── elevenlabs_service.py # TTS service using ElevenLabs
+│   ├── llm_service.py # LLM service using Gemini
+│   └── stt_service.py # Speech-to-text service
+└── utils/          # Utility functions and logging
+```
+
+## License
+[MIT](LICENSE)
+</file>
+
+</files>

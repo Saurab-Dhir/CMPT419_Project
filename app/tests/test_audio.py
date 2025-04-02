@@ -2,6 +2,16 @@ import io
 import pytest
 from fastapi.testclient import TestClient
 from app.main import app
+import os
+import cv2
+import numpy as np
+import argparse
+import logging
+from datetime import datetime
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 client = TestClient(app)
 

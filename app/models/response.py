@@ -84,4 +84,25 @@ class LLMToTTSResponse(BaseModel):
     audio_url: Optional[str] = Field(None, description="URL to access the generated audio")
     session_id: str = Field(..., description="Session identifier for tracking")
     emotion: Optional[str] = Field(None, description="Emotion detected or processed")
-    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata") 
+    metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
+
+class MultiModalEmotionInput(BaseModel):
+    """Input model for multi-modal emotion detection with semantic, tonal, and facial emotions."""
+    user_speech: str = Field(..., description="The transcribed user speech")
+    semantic_emotion: Optional[str] = Field(None, description="Emotion detected from the semantic content of speech")
+    tonal_emotion: Optional[str] = Field(None, description="Emotion detected from the tone/prosody of speech")
+    facial_emotion: Optional[str] = Field(None, description="Emotion detected from facial expressions")
+    session_id: str = Field(..., description="Session identifier for tracking the conversation")
+    timestamp: datetime = Field(default_factory=datetime.now, description="When the input was collected")
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "user_speech": "I'm feeling really anxious about my presentation tomorrow.",
+                "semantic_emotion": "anxiety",
+                "tonal_emotion": "fear",
+                "facial_emotion": "worry",
+                "session_id": "session_1234567890",
+                "timestamp": "2023-04-01T12:00:00"
+            }
+        } 
