@@ -20,6 +20,7 @@ class AudioTranscription(BaseModel):
     """Model for speech-to-text transcription."""
     text: str = Field(..., description="Transcribed text")
     language: str = Field(default="en", description="Detected language")
+    raw_response: Optional[str] = Field(None, description="Raw JSON response from the transcription service")
     
 class AudioProcessingResult(BaseModel):
     """Complete result of audio processing."""
@@ -29,6 +30,7 @@ class AudioProcessingResult(BaseModel):
     features: AudioFeatures = Field(..., description="Extracted audio features")
     transcription: AudioTranscription = Field(..., description="Speech-to-text result")
     emotion_prediction: Optional[AudioEmotionPrediction] = Field(None, description="Emotion prediction if available")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="Additional metadata like debug info")
     
     class Config:
         schema_extra = {
@@ -54,6 +56,10 @@ class AudioProcessingResult(BaseModel):
                         "nervousness": 0.75,
                         "fear": 0.45
                     }
+                },
+                "metadata": {
+                    "debug_file_path": "audio_debug/sample.wav",
+                    "processing_time_ms": 350
                 }
             }
         } 

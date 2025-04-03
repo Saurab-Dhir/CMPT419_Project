@@ -25,6 +25,7 @@ venv/
 env/
 ENV/
 ven/
+419env/
 
 # IDE
 .idea/
@@ -50,3 +51,14 @@ htmlcov/
 Thumbs.db 
 /static
 /output
+
+# Ignore data folders
+tone_classification/data/CREMA/
+tone_classification/data/RAVDESS/
+/audio_debug
+/audio_debug
+/audio_temp
+/webcam_audio_debug
+/webcam_audio_debug
+webcam_audio_debug/webcam_20250401_134617_session_.webm
+/debug/faces

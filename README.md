@@ -1,142 +1,168 @@
-# Mirror Mirror on the Wall: Empathetic Self-talk Coach
+# EmotiVoice: Multimodal Emotion Recognition System
 
-## Project Overview
-An AI-powered empathetic self-talk coach application that processes audio and visual inputs to understand emotional states and provide supportive, empathetic responses.
+A comprehensive multimodal emotion analysis system that processes webcam video and microphone input to detect emotions from facial expressions, speech tone, and language content. The system generates empathetic responses based on the detected emotions.
 
 ## Features
-- Audio processing pipeline for speech capture and analysis
-- Visual processing for facial expression analysis
-- Emotion classification from combined inputs
-- LLM-generated empathetic responses
-- Text-to-Speech for audio feedback
 
-## Workflow Architecture
-Our application processes two types of input:
+- **Multimodal Emotion Detection**: Detects emotions from three sources:
+  - **Facial Emotion**: Analyzes facial expressions using DeepFace
+  - **Tonal Emotion**: Analyzes voice tone using audio classification
+  - **Semantic Emotion**: Extracts emotion from speech content using Gemini AI
+  
+- **Real-time Processing**: Processes webcam video and microphone input in real-time
+- **Empathetic AI Responses**: Generates contextually appropriate responses based on detected emotions
+- **Text-to-Speech**: Converts AI responses to natural-sounding speech using ElevenLabs
+- **WebSocket Communication**: Enables real-time bidirectional communication
 
-### 1. Audio Input Processing
-Audio input goes through two parallel processes:
-- **Speech-to-Text (STT)**: Using Google's Gemini API, we convert spoken language into text that can be analyzed and responded to.
-- **Tone Analysis**: The audio is analyzed to detect emotional patterns in the user's voice (pitch, volume, speaking rate, pauses, etc.).
+## Complete System Workflow
 
-### 2. Video Input Processing
-- **Facial Expression Analysis**: Using Meta DeepFace technology, we analyze facial expressions to detect emotions.
-- **Feature Extraction**: We track facial landmarks, eye openness, mouth position, and head pose to enhance emotion detection.
+1. **User Input Collection**
+   - Webcam captures video frames at regular intervals
+   - Microphone records audio in chunks and buffers it
+   - WebSocket sends both to the server when sufficient data is collected
 
-### 3. Multi-modal Emotion Classification
-- Results from both audio and visual analyses are combined to produce a more accurate emotional assessment.
-- This hybrid approach allows for better understanding of the user's emotional state than either method alone.
+2. **Video Processing (Facial Emotion)**
+   - DeepFace service detects faces in the video frame
+   - Facial landmarks and features are extracted
+   - Emotion classification is performed on the face (happy, sad, angry, etc.)
+   - Results are stored with confidence scores
 
-### 4. Response Generation
-- Emotional assessment and transcribed text are sent to Gemini LLM.
-- The LLM generates an empathetic, supportive response tailored to the user's emotional state.
+3. **Audio Processing (Dual Analysis)**
+   - **Speech-to-Text Transcription**:
+     - Audio is converted to base64 format
+     - Sent to Gemini API for transcription
+     - Transcript is analyzed for semantic emotional content
+   - **Tone Analysis**:
+     - Audio features are extracted using specialized models
+     - Voice tone is classified into emotional categories
+     - Confidence scores are calculated for each emotion
 
-### 5. Text-to-Speech Conversion
-- The text response is converted to speech using ElevenLabs' advanced TTS service.
-- The spoken response is delivered to the user, completing the interaction loop.
+4. **Emotion Integration**
+   - All three emotion sources (facial, tonal, semantic) are combined in a `MultiModalEmotionInput` object
+   - Each emotion type is preserved independently (not averaged or weighted)
 
-## Setup Instructions
+5. **Response Generation**
+   - The LLM service receives the transcription and all emotion data
+   - A carefully crafted prompt is sent to Gemini API
+   - The prompt includes instructions to consider all three emotion types
+   - An empathetic response is generated based on context
 
-### Prerequisites
-- Python 3.10+
-- Docker and Docker Compose (optional, for containerized setup)
+6. **Text-to-Speech Conversion**
+   - The generated text response is sent to ElevenLabs API
+   - Natural-sounding speech is synthesized
+   - Audio file is saved and URL is generated
 
-### Local Development Setup
+7. **Response Delivery**
+   - Complete response package is sent back via WebSocket:
+     - Original transcription
+     - All detected emotions (facial, tonal, semantic)
+     - Generated text response
+     - Audio URL for playback
+
+## Requirements
+
+- Python 3.7+
+- FastAPI
+- WebSockets
+- OpenCV
+- NumPy
+- TensorFlow/PyTorch (for tone analysis)
+- DeepFace (for facial emotion detection)
+- Google Gemini API key
+- ElevenLabs API key
+
+## Installation
+
 1. Clone the repository:
-   ```
-   git clone https://github.com/yourusername/CMPT419_Project.git
-   cd CMPT419_Project
-   ```
+```bash
+git clone https://github.com/Saurab-Dhir/CMPT419_Project
+cd CMPT419_Project
+```
 
 2. Create a virtual environment:
-   ```
-   python -m venv venv
-   source venv/bin/activate  # On Windows: venv\Scripts\activate
-   ```
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows, use: venv\Scripts\activate
+```
 
 3. Install dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
-
-4. Run the development server:
-   ```
-   uvicorn app.main:app --reload
-   ```
-
-5. Configure API Keys:
-   Create a `.env` file in the root directory with the following variables:
-   ```
-   LLM_API_KEY=your-gemini-api-key
-   ELEVENLABS_API_KEY=your-elevenlabs-api-key
-   ```
-
-   You'll need to obtain API keys from:
-   - [Google AI Studio](https://ai.google.dev/) for Gemini
-   - [ElevenLabs](https://elevenlabs.io/) for text-to-speech
-
-### Docker Development Setup
-1. Build and start the containers:
-   ```
-   docker-compose up --build
-   ```
-
-## Testing the Audio Processing Workflow
-
-We've implemented a basic audio processing workflow that:
-1. Takes audio input
-2. Sends it to Gemini for speech-to-text transcription
-3. Logs it for emotion classification (classifier currently in development)
-
-To test this workflow:
-
-1. Make sure the server is running:
-   ```
-   uvicorn app.main:app --reload
-   ```
-
-2. Run the test script:
-   ```
-   python test_audio_workflow.py
-   ```
-   This will use a sample audio file from the test_files directory and send it to the API.
-
-3. Alternatively, test via the Swagger UI:
-   - Open http://localhost:8000/docs
-   - Navigate to the `/api/v1/audio/process` endpoint
-   - Upload an audio file and set the duration
-   - Click "Execute"
-
-## API Documentation
-Once the server is running, you can access the API documentation at:
-- Swagger UI: http://localhost:8000/docs
-- ReDoc: http://localhost:8000/redoc
-
-## Running Tests
-Run tests using pytest:
+```bash
+pip install -r requirements.txt
 ```
-pytest app/tests/
+
+4. Set up environment variables by creating a `.env` file:
 ```
+ELEVENLABS_API_KEY=your_elevenlabs_api_key
+LLM_API_KEY=your_gemini_api_key
+```
+
+5. Install DeepFace for enhanced facial analysis:
+```bash
+pip install deepface
+```
+
+## Running the Application
+
+1. Start the server:
+```bash
+python run.py
+```
+
+2. Open your browser and navigate to:
+```
+http://localhost:8000/webcam
+```
+
+3. Allow access to your webcam and microphone when prompted
+
+4. Use the application:
+   - Click "Start Recording" to begin capturing audio and video
+   - Speak naturally while facing the camera
+   - Click "Stop Recording" when finished
+   - View the analysis results and AI response
+   - Listen to the synthesized speech response
 
 ## Project Structure
+
 ```
 app/
-├── core/           # Application core modules and configuration
-├── models/         # Pydantic models for request/response schemas
-│   ├── audio.py    # Models for audio processing
-│   ├── visual.py   # Models for visual/facial processing
-│   └── response.py # Models for LLM responses and combined data
-├── routers/        # API route handlers
-│   ├── audio.py    # Audio processing endpoints
-│   ├── llm_to_tts.py # Combined LLM and TTS workflow
-│   ├── response.py # Response generation endpoints
-│   └── tts.py      # Text-to-speech endpoints
-├── services/       # Business logic implementation
-│   ├── audio_service.py # Audio processing service
-│   ├── elevenlabs_service.py # TTS service using ElevenLabs
-│   ├── llm_service.py # LLM service using Gemini
-│   └── stt_service.py # Speech-to-text service
-└── utils/          # Utility functions and logging
+├── models/             # Data models for the application
+│   ├── audio.py        # Audio processing models
+│   ├── response.py     # Response models including MultiModalEmotionInput
+│   └── visual.py       # Visual processing models
+├── routers/            # API route definitions
+│   ├── realtime.py     # WebSocket handler for real-time processing
+├── services/           # Core service implementations
+│   ├── audio_service.py       # Audio processing service
+│   ├── deepface_service.py    # Facial analysis service
+│   ├── elevenlabs_service.py  # Text-to-speech service
+│   ├── llm_service.py         # LLM service using Gemini API
+│   ├── multimodal_service.py  # Combined multimodal processing
+│   ├── stt_service.py         # Speech-to-text service
+│   ├── tone_service.py        # Tone analysis service
+│   └── visual_service.py      # Visual processing service
+├── utils/              # Utility functions
+├── main.py             # FastAPI application setup
+static/
+├── webcam.html         # Frontend interface for webcam interaction
+├── styles.css          # Styling for the interface
+└── js/                 # JavaScript for the frontend
 ```
 
+## Troubleshooting
+
+- **No emotions detected**: Ensure good lighting and clear audio
+- **Facial emotion always neutral**: Try different expressions or check lighting
+- **No audio transcription**: Check microphone permissions and audio levels
+- **API key errors**: Verify your API keys in the `.env` file
+
 ## License
-[MIT](LICENSE)
+
+This project is proprietary and protected by copyright. All rights reserved. Unauthorized copying, modification, distribution, or use of this software is strictly prohibited unless permission granted from author.
+
+## Acknowledgments
+
+- DeepFace for facial analysis
+- Google Gemini for LLM and STT capabilities
+- ElevenLabs for high-quality text-to-speech
+- FastAPI and WebSockets for the real-time server
