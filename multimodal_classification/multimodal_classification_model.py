@@ -25,6 +25,14 @@ class MultiModalClassifier():
             'neutral': self.__NEUTRAL_EMOTION
         }
 
+    def mass_function(self, evidence):
+        if evidence.emotion not in self.__E:
+            return { frozenset(self.__E): 1.0 }
+        return {
+            frozenset([evidence.emotion]): evidence.confidence,
+            frozenset(self.__E): 1 - evidence.confidence
+        }
+
     def predict(self, tone, face, semantics):
         """
         args:
@@ -35,18 +43,9 @@ class MultiModalClassifier():
         E = ('angry', 'disgust', 'fearful', 'happy', 'neutral', 'sad')
         
         # Define mass functions for each modality
-        m_tone = {
-            frozenset([tone.emotion]): tone.confidence,
-            frozenset(E): 1 - tone.confidence
-        }
-        m_face = {
-            frozenset([face.emotion]): face.confidence,
-            frozenset(E): 1 - face.confidence
-        }
-        m_semantics = {
-            frozenset([semantics.emotion]): semantics.confidence,
-            frozenset(E): 1 - semantics.confidence
-        }
+        m_tone = self.mass_function(tone)
+        m_face = self.mass_function(face)
+        m_semantics = self.mass_function(semantics)
 
         # Discount evidences based classifier reliability
         m_tone = self.__discount_mass_function(m_tone, tone.reliability)
