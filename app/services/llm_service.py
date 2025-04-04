@@ -14,6 +14,7 @@ class LLMService:
         self.api_key = settings.LLM_API_KEY
         self.model = settings.LLM_MODEL
         self.base_url = "https://generativelanguage.googleapis.com/v1/models"
+        self.__context = ""
         print(f"🔑 LLM API Key present: {bool(self.api_key)}")
         print(f"🤖 Using LLM model: {self.model}")
         
@@ -347,6 +348,13 @@ class LLMService:
                     "facial_emotion": multimodal_input.facial_emotion
                 }
             )
+
+            # Update context
+            self.__context += f"\nUSER: {multimodal_input.user_speech}"
+            self.__context += f"\nYOU: {response_text}"
+            print("===== CONVERSATION CONTEXT =====")
+            print(self.__context)
+            print("\n===================================")
             
             return response_text, response_id
             
@@ -422,8 +430,11 @@ USER INPUT DESCRIPTION:
 1. The user_speech is a transcrfipt of what they said.
 2. The fused_emotion is a combined prediction of emotions based on predictions on individual cues of tone, facial expression, and semantics.
 
+CONTEXT:
+{self.__context}
+
 INSTRUCTIONS:
-Generate a thoughtful, empathetic response that acknowledges these emotional signals. Try to maintain the catchball in the conversation (maybe by responding with a followup question or some other way that is natural in casual conversations).
+Generate a thoughtful, empathetic response that acknowledges these emotional signals. Account for the context of the conversation and try to maintain the catchball in the conversation (maybe by responding with a followup question or some other way that is natural in casual conversations).
 Be natural and keep your response concise (in most cases under 50 words), human-like, and conversational.
 Do not explicitly mention that you're aware of their emotions unless it feels natural to do so."""
 
@@ -497,6 +508,7 @@ Do not explicitly mention that you're aware of their emotions unless it feels na
         # Select a random response for the emotion
         import random
         return random.choice(responses[emotion_category])
+
 
 # Create a singleton instance
 llm_service = LLMService() 
