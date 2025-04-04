@@ -19,6 +19,7 @@ from app.services.llm_service import llm_service
 from app.services.stt_service import stt_service
 from app.services.elevenlabs_service import elevenlabs_service
 from app.services.multimodal_service import multimodal_service
+from multimodal_classification.multimodal_classification_model import Evidence, MultiModalClassifier
 
 router = APIRouter()
 
@@ -519,6 +520,28 @@ async def process_multimodal_data(websocket: WebSocket, client_id: str, session_
         
         # Log all emotions for debugging
         print(f"🔍 EMOTION SUMMARY - Semantic: {semantic_emotion}, Tonal: {tonal_emotion}, Facial: {facial_emotion}")
+
+        # ======= START OF INSERTION
+        tone = Evidence(
+            emotion=tonal_emotion, 
+            confidence=audio_result.emotion_prediction.confidence, 
+            reliability=0.8)
+        face = Evidence(
+            emotion=facial_emotion, 
+            confidence=visual_result.emotion_prediction.confidence, 
+            reliability=0.9)
+        semantics = Evidence(
+            emotion=semantic_emotion, 
+            confidence=0.8, 
+            reliability=0.9)
+        
+        multimodal_model = MultiModalClassifier()
+        combined_prediction = multimodal_model.predict(tone, face, semantics)
+        print(f"\n===== MULTIMODAL LATE FUSION MODEL [{processing_id}] =====")
+        print("FUSED PREDICTIONS:")
+        multimodal_model.print_mass_function(combined_prediction, "tone, facial expression, semantics")
+        print("========================================\n")
+        # ======= END OF INSERTION
         
         # Create multimodal input
         multimodal_input = MultiModalEmotionInput(
@@ -526,6 +549,7 @@ async def process_multimodal_data(websocket: WebSocket, client_id: str, session_
             semantic_emotion=semantic_emotion,
             tonal_emotion=tonal_emotion,
             facial_emotion=facial_emotion,
+            fused_emotion=combined_prediction,
             session_id=session_id
         )
         
