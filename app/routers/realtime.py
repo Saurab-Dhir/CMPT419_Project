@@ -537,7 +537,7 @@ async def process_multimodal_data(websocket: WebSocket, client_id: str, session_
         
         multimodal_model = MultiModalClassifier()
         combined_prediction = multimodal_model.predict(tone, face, semantics)
-        print(f"\n===== MULTIMODAL LATE FUSION MODEL [{processing_id}] =====")
+        print(f"\n===== MULTIMODAL LATE FUSION MODEL [{session_id}] =====")
         print("FUSED PREDICTIONS:")
         multimodal_model.print_mass_function(combined_prediction, "tone, facial expression, semantics")
         print("========================================\n")
