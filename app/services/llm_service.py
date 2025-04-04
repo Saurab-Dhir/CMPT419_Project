@@ -412,9 +412,6 @@ Keep your response concise (2-3 sentences), conversational, and genuinely suppor
         """
         # Extract the user's speech and emotions
         user_speech = multimodal_input.user_speech
-        semantic_emotion = multimodal_input.semantic_emotion or "neutral"
-        tonal_emotion = multimodal_input.tonal_emotion or "neutral"
-        facial_emotion = multimodal_input.facial_emotion or "neutral"
         fused_emotion = multimodal_input.fused_emotion
         
         # Construct a detailed prompt that includes emotional information
@@ -437,28 +434,6 @@ INSTRUCTIONS:
 Generate a thoughtful, empathetic response that acknowledges these emotional signals. Account for the context of the conversation and try to maintain the catchball in the conversation (maybe by responding with a followup question or some other way that is natural in casual conversations).
 Be natural and keep your response concise (in most cases under 50 words), human-like, and conversational.
 Do not explicitly mention that you're aware of their emotions unless it feels natural to do so."""
-
-        # prompt = f"""
-        #     Reply to the user as a real human being nothing more nothing less and consider the following:
-
-        #     USER INPUT:
-        #     {{
-        #         "user_speech": "{user_speech}",
-        #         "semantic_emotion": "{semantic_emotion}",
-        #         "tonal_emotion": "{tonal_emotion}",
-        #         "facial_emotion": "{facial_emotion}"
-        #     }}
-
-        #     INSTRUCTIONS:
-        #     1. The user said what is transcribed in user_speech.
-        #     2. The semantic_emotion is what the content of their words suggests.
-        #     3. The tonal_emotion is what their voice tone suggests.
-        #     4. The facial_emotion is what their facial expressions suggest.
-
-        #     Generate a thoughtful, empathetic response that acknowledges these emotional signals.
-        #     Keep your response concise, human-like, and conversational.
-        #     Do not explicitly mention that you're aware of their emotions unless it feels natural to do so.
-        #     """
         
         return prompt
 

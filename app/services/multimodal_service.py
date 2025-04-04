@@ -4,8 +4,6 @@ import json
 from datetime import datetime
 import asyncio
 
-# from app.models.audio import AudioProcessingResult
-# from app.models.visual import VisualProcessingResult
 from app.models.response import MultiModalEmotionInput, LLMToTTSResponse
 from app.services.audio_service import audio_service
 from app.services.visual_service import VisualService
@@ -13,7 +11,6 @@ from app.services.stt_service import stt_service
 from app.services.llm_service import llm_service
 from app.services.elevenlabs_service import elevenlabs_service
 from multimodal_classification.multimodal_classification_model import Evidence, MultiModalClassifier
-# from app.utils.logging import response_logger
 
 class MultiModalService:
     """Service for processing multimodal inputs (audio + video) and generating responses."""
@@ -77,7 +74,6 @@ class MultiModalService:
             if transcription == "(No speech detected)":
                 print("⚠️ Empty transcription detected, proceeding with minimal input")
             
-            # ======= START OF INSERTION
             tone = Evidence(
                 emotion=tonal_emotion, 
                 confidence=audio_result.emotion_prediction.confidence, 
@@ -97,7 +93,6 @@ class MultiModalService:
             print("FUSED PREDICTIONS:")
             multimodal_model.print_mass_function(combined_prediction, "tone, facial expression, semantics")
             print("========================================\n")
-            # ======= END OF INSERTION
 
             
             # Create multimodal input for LLM

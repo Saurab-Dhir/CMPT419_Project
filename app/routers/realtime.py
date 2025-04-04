@@ -521,7 +521,6 @@ async def process_multimodal_data(websocket: WebSocket, client_id: str, session_
         # Log all emotions for debugging
         print(f"🔍 EMOTION SUMMARY - Semantic: {semantic_emotion}, Tonal: {tonal_emotion}, Facial: {facial_emotion}")
 
-        # ======= START OF INSERTION
         tone = Evidence(
             emotion=tonal_emotion, 
             confidence=audio_result.emotion_prediction.confidence, 
@@ -541,7 +540,6 @@ async def process_multimodal_data(websocket: WebSocket, client_id: str, session_
         print("FUSED PREDICTIONS:")
         multimodal_model.print_mass_function(combined_prediction, "tone, facial expression, semantics")
         print("========================================\n")
-        # ======= END OF INSERTION
         
         # Create multimodal input
         multimodal_input = MultiModalEmotionInput(
