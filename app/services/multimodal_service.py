@@ -4,15 +4,13 @@ import json
 from datetime import datetime
 import asyncio
 
-from app.models.audio import AudioProcessingResult
-from app.models.visual import VisualProcessingResult
 from app.models.response import MultiModalEmotionInput, LLMToTTSResponse
 from app.services.audio_service import audio_service
 from app.services.visual_service import VisualService
 from app.services.stt_service import stt_service
 from app.services.llm_service import llm_service
 from app.services.elevenlabs_service import elevenlabs_service
-from app.utils.logging import response_logger
+from multimodal_classification.multimodal_classification_model import Evidence, MultiModalClassifier
 
 class MultiModalService:
     """Service for processing multimodal inputs (audio + video) and generating responses."""
@@ -76,17 +74,41 @@ class MultiModalService:
             if transcription == "(No speech detected)":
                 print("⚠️ Empty transcription detected, proceeding with minimal input")
             
+            tone = Evidence(
+                emotion=tonal_emotion, 
+                confidence=audio_result.emotion_prediction.confidence, 
+                reliability=0.8)
+            face = Evidence(
+                emotion=facial_emotion, 
+                confidence=visual_result.emotion_prediction.confidence, 
+                reliability=0.9)
+            semantics = Evidence(
+                emotion=semantic_emotion, 
+                confidence=0.8, 
+                reliability=0.9)
+            
+            multimodal_model = MultiModalClassifier()
+            combined_prediction = multimodal_model.predict(tone, face, semantics)
+            print(f"\n===== MULTIMODAL LATE FUSION MODEL [{processing_id}] =====")
+            print("FUSED PREDICTIONS:")
+            multimodal_model.print_mass_function(combined_prediction, "tone, facial expression, semantics")
+            print("========================================\n")
+
+            
             # Create multimodal input for LLM
             multimodal_input = MultiModalEmotionInput(
                 user_speech=transcription,
                 semantic_emotion=semantic_emotion,
                 tonal_emotion=tonal_emotion,
                 facial_emotion=facial_emotion,
+                fused_emotion=combined_prediction,
                 session_id=session_id
             )
+
             
             # Generate response using LLM
             response_text, response_id = await llm_service.process_multimodal_input(multimodal_input)
+
             
             # Synthesize speech using ElevenLabs
             audio_url, full_path = await elevenlabs_service.synthesize_speech(

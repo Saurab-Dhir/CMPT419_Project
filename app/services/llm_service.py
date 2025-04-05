@@ -14,6 +14,7 @@ class LLMService:
         self.api_key = settings.LLM_API_KEY
         self.model = settings.LLM_MODEL
         self.base_url = "https://generativelanguage.googleapis.com/v1/models"
+        self.__context = ""
         print(f"🔑 LLM API Key present: {bool(self.api_key)}")
         print(f"🤖 Using LLM model: {self.model}")
         
@@ -347,6 +348,13 @@ class LLMService:
                     "facial_emotion": multimodal_input.facial_emotion
                 }
             )
+
+            # Update context
+            self.__context += f"\nUSER: {multimodal_input.user_speech}"
+            self.__context += f"\nYOU: {response_text}"
+            print("===== CONVERSATION CONTEXT =====")
+            print(self.__context)
+            print("\n===================================")
             
             return response_text, response_id
             
@@ -404,31 +412,28 @@ Keep your response concise (2-3 sentences), conversational, and genuinely suppor
         """
         # Extract the user's speech and emotions
         user_speech = multimodal_input.user_speech
-        semantic_emotion = multimodal_input.semantic_emotion or "neutral"
-        tonal_emotion = multimodal_input.tonal_emotion or "neutral"
-        facial_emotion = multimodal_input.facial_emotion or "neutral"
+        fused_emotion = multimodal_input.fused_emotion
         
         # Construct a detailed prompt that includes emotional information
-        prompt = f"""Reply to the user as a real human being nothing more nothing less and consider the following:
+        prompt=f"""Reply to the user as a friend. Consider the following when generating a response:
 
 USER INPUT:
 {{
-  "user_speech": "{user_speech}",
-  "semantic_emotion": "{semantic_emotion}",
-  "tonal_emotion": "{tonal_emotion}",
-  "facial_emotion": "{facial_emotion}"
+"user_speech": "{user_speech}",
+"fused_emotion": {fused_emotion}
 }}
 
-INSTRUCTIONS:
-1. The user said what is transcribed in user_speech.
-2. The semantic_emotion is what the content of their words suggests.
-3. The tonal_emotion is what their voice tone suggests.
-4. The facial_emotion is what their facial expressions suggest.
+USER INPUT DESCRIPTION:
+1. The user_speech is a transcript of what they said.
+2. The fused_emotion is a combined prediction of emotions based on predictions on individual cues of tone, facial expression, and semantics.
 
-Generate a thoughtful, empathetic response that acknowledges these emotional signals.
-Keep your response concise, human-like, and conversational.
-Do not explicitly mention that you're aware of their emotions unless it feels natural to do so.
-"""
+CONTEXT:
+{self.__context}
+
+INSTRUCTIONS:
+Generate a thoughtful, empathetic response that acknowledges these emotional signals. Account for the context of the conversation and try to maintain the catchball in the conversation (maybe by responding with a followup question or some other way that is natural in casual conversations).
+Be natural and keep your response concise (in most cases under 50 words), human-like, and conversational.
+Do not explicitly mention that you're aware of their emotions unless it feels natural to do so."""
         
         return prompt
 
@@ -478,6 +483,7 @@ Do not explicitly mention that you're aware of their emotions unless it feels na
         # Select a random response for the emotion
         import random
         return random.choice(responses[emotion_category])
+
 
 # Create a singleton instance
 llm_service = LLMService() 
