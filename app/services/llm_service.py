@@ -424,7 +424,7 @@ USER INPUT:
 }}
 
 USER INPUT DESCRIPTION:
-1. The user_speech is a transcrfipt of what they said.
+1. The user_speech is a transcript of what they said.
 2. The fused_emotion is a combined prediction of emotions based on predictions on individual cues of tone, facial expression, and semantics.
 
 CONTEXT:
