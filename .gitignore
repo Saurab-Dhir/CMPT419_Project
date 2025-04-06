@@ -55,6 +55,7 @@ Thumbs.db
 # Ignore data folders
 tone_classification/data/CREMA/
 tone_classification/data/RAVDESS/
+tone_classification/data/Custom/
 /audio_debug
 /audio_debug
 /audio_temp
