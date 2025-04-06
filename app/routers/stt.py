@@ -5,10 +5,6 @@ from app.services.stt_service import stt_service
 import mimetypes
 import uuid
 
-# class STTRequest(BaseModel):
-#     audio_file: UploadFile = Field(..., description="Audio file to be transcribed"),
-#     response_id: Optional[str] = Field(None, description="ID associate with response")
-
 class STTResponse(BaseModel):
     transcript: str = Field(..., description="Speech transcript")
 

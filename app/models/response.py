@@ -92,6 +92,7 @@ class MultiModalEmotionInput(BaseModel):
     semantic_emotion: Optional[str] = Field(None, description="Emotion detected from the semantic content of speech")
     tonal_emotion: Optional[str] = Field(None, description="Emotion detected from the tone/prosody of speech")
     facial_emotion: Optional[str] = Field(None, description="Emotion detected from facial expressions")
+    fused_emotion: Dict[str, float] = Field(..., description="Combined emotion prediction of all modalities")
     session_id: str = Field(..., description="Session identifier for tracking the conversation")
     timestamp: datetime = Field(default_factory=datetime.now, description="When the input was collected")
     
@@ -102,7 +103,15 @@ class MultiModalEmotionInput(BaseModel):
                 "semantic_emotion": "anxiety",
                 "tonal_emotion": "fear",
                 "facial_emotion": "worry",
+                "fused_emotion": {
+                    "sad": 0.721,
+                    "neutral": 0.224,
+                    "angry": 0.014,
+                    "fearful": 0.014,
+                    "disgust": 0.014,
+                    "happy": 0.014
+                },
                 "session_id": "session_1234567890",
                 "timestamp": "2023-04-01T12:00:00"
             }
-        } 
+        }
