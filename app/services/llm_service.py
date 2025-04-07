@@ -264,7 +264,7 @@ class LLMService:
             
             return response_text, response_id
     
-    async def process_multimodal_input(self, multimodal_input) -> Tuple[str, str]:
+    async def process_multimodal_input(self, multimodal_input) -> Tuple[str, str, str]:
         """
         Process a multimodal input with multiple emotion sources and generate a response.
         
@@ -272,7 +272,7 @@ class LLMService:
             multimodal_input: A MultiModalEmotionInput with speech transcription and emotions
             
         Returns:
-            Tuple of (generated response text, response_id)
+            Tuple of (generated response text, response_id, model_emotion)
         """
         # Create a unique ID for this response
         response_id = f"gemini_mm_{uuid.uuid4().hex[:10]}"
@@ -281,7 +281,7 @@ class LLMService:
             print("❌ No LLM API key provided, please set LLM_API_KEY in .env file")
             # Return mock response
             response_text = self._get_mock_multimodal_response(multimodal_input)
-            return response_text, response_id
+            return response_text, response_id, "neutral"
         
         try:
             # Prepare the full prompt with multimodal input
@@ -325,10 +325,59 @@ class LLMService:
             print(f"✅ Gemini API multimodal response received, status: {response.status_code}")
             
             # Extract the generated text from the response
+            response_text = ""
+            model_emotion = "neutral"  # Default emotion
+            
             if "candidates" in result and len(result["candidates"]) > 0:
                 generated_text = result["candidates"][0]["content"]["parts"][0]["text"]
-                response_text = generated_text.strip()
-                print(f"✅ Generated text (first 50 chars): {response_text[:50]}...")
+                raw_text = generated_text.strip()
+                print(f"✅ Raw Gemini response: {raw_text[:200]}...")
+                
+                # Try to parse as JSON to extract response and model_emotion
+                try:
+                    # Clean up the text to handle potential formatting issues
+                    # Sometimes Gemini might add extra text before or after the JSON
+                    json_str = raw_text
+                    
+                    # Try to find JSON content if not properly formatted
+                    if not (raw_text.startswith("{") and raw_text.endswith("}")):
+                        import re
+                        json_match = re.search(r'({.*})', raw_text, re.DOTALL)
+                        if json_match:
+                            json_str = json_match.group(1)
+                    
+                    print(f"Attempting to parse JSON: {json_str[:100]}...")
+                    response_data = json.loads(json_str)
+                    
+                    # Extract the response and model_emotion
+                    if "response" in response_data:
+                        response_text = response_data["response"]
+                        print(f"Extracted response: {response_text[:50]}...")
+                    else:
+                        response_text = raw_text
+                        print("No 'response' field in JSON, using raw text")
+                    
+                    if "model_emotion" in response_data:
+                        model_emotion = response_data["model_emotion"].lower()
+                        print(f"Extracted model emotion: {model_emotion}")
+                        
+                        # Validate the model_emotion is one of our supported emotions
+                        valid_emotions = ["happy", "sad", "neutral", "surprise", "afraid", "angry", "disgust"]
+                        if model_emotion not in valid_emotions:
+                            print(f"Invalid model_emotion: {model_emotion}, defaulting to neutral")
+                            model_emotion = "neutral"
+                    else:
+                        print("No 'model_emotion' field in JSON, using neutral")
+                
+                except json.JSONDecodeError as json_err:
+                    print(f"Failed to parse JSON response: {str(json_err)}")
+                    response_text = raw_text
+                    # Use a regex fallback to try to extract the model_emotion
+                    import re
+                    emotion_match = re.search(r'"model_emotion"\s*:\s*"([^"]+)"', raw_text)
+                    if emotion_match:
+                        model_emotion = emotion_match.group(1).lower()
+                        print(f"Extracted model_emotion via regex: {model_emotion}")
             else:
                 print("❌ No candidates in Gemini multimodal response")
                 # Fallback to mock
@@ -345,7 +394,8 @@ class LLMService:
                     "session_id": multimodal_input.session_id,
                     "semantic_emotion": multimodal_input.semantic_emotion,
                     "tonal_emotion": multimodal_input.tonal_emotion,
-                    "facial_emotion": multimodal_input.facial_emotion
+                    "facial_emotion": multimodal_input.facial_emotion,
+                    "model_emotion": model_emotion
                 }
             )
 
@@ -356,7 +406,7 @@ class LLMService:
             print(self.__context)
             print("\n===================================")
             
-            return response_text, response_id
+            return response_text, response_id, model_emotion
             
         except Exception as e:
             print(f"❌ Error in LLM multimodal service: {str(e)}")
@@ -367,7 +417,7 @@ class LLMService:
             # Fallback to mock response on error
             response_text = self._get_mock_multimodal_response(multimodal_input)
             
-            return response_text, response_id
+            return response_text, response_id, "neutral"
     
     def _prepare_empathetic_prompt(self, prompt: str, emotion: str = None) -> str:
         """Prepare a complete prompt with empathetic instructions."""
@@ -414,8 +464,27 @@ Keep your response concise (2-3 sentences), conversational, and genuinely suppor
         user_speech = multimodal_input.user_speech
         fused_emotion = multimodal_input.fused_emotion
         
+<<<<<<< Updated upstream
         # Construct a detailed prompt that includes emotional information
         prompt=f"""Reply to the user as a friend. Consider the following when generating a response:
+=======
+        # Emotion mapping for model response
+        emotion_mapping = {
+            "happy": "This user is expressing happiness, so your 3D model should respond with a happy expression.",
+            "sad": "This user is expressing sadness, so your 3D model should respond with a sad or concerned expression to show empathy.",
+            "angry": "This user is expressing anger, so your 3D model should respond with a neutral or slightly concerned expression to de-escalate.",
+            "neutral": "This user is neutral, so your 3D model should maintain a neutral expression.",
+            "disgust": "This user is expressing disgust, so your 3D model should respond with a slightly surprised or concerned expression.",
+            "surprise": "This user is expressing surprise, so your 3D model should respond with a mild surprise or happy expression.",
+            "fear": "This user is expressing fear or anxiety, so your 3D model should show a calm, reassuring expression."
+        }
+        
+        # Get the appropriate guidance for the 3D model based on the user's emotion
+        model_emotion_guidance = emotion_mapping.get(semantic_emotion.lower(), "Your 3D model should maintain a neutral expression.")
+        
+        # Construct a detailed prompt that includes emotional information and asks for model emotion response
+        prompt = f"""Reply to the user as a real human being nothing more nothing less and consider the following:
+>>>>>>> Stashed changes
 
 USER INPUT:
 {{
@@ -427,6 +496,7 @@ USER INPUT DESCRIPTION:
 1. The user_speech is a transcript of what they said.
 2. The fused_emotion is a combined prediction of emotions based on predictions on individual cues of tone, facial expression, and semantics.
 
+<<<<<<< Updated upstream
 CONTEXT:
 {self.__context}
 
@@ -434,6 +504,27 @@ INSTRUCTIONS:
 Generate a thoughtful, empathetic response that acknowledges these emotional signals. Account for the context of the conversation and try to maintain the catchball in the conversation (maybe by responding with a followup question or some other way that is natural in casual conversations).
 Be natural and keep your response concise (in most cases under 50 words), human-like, and conversational.
 Do not explicitly mention that you're aware of their emotions unless it feels natural to do so."""
+=======
+{model_emotion_guidance}
+
+Your response needs to include two parts:
+1. The text response to show to the user.
+2. The emotion your 3D model should display.
+
+Format your response as JSON with the following structure:
+{{
+  "response": "Your empathetic response to the user goes here",
+  "model_emotion": "happy|sad|neutral|surprise|afraid|angry|disgust"
+}}
+
+The model_emotion should be one of: happy, sad, neutral, surprise, afraid, angry, or disgust.
+Choose the model_emotion that would be most appropriate for your virtual character to show in response to this user.
+
+Generate a thoughtful, empathetic response that acknowledges the user's emotional signals.
+Keep your response concise, human-like, and conversational.
+Do not explicitly mention that you're aware of their emotions unless it feels natural to do so.
+"""
+>>>>>>> Stashed changes
         
         return prompt
 

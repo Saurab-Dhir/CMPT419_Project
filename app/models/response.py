@@ -84,6 +84,7 @@ class LLMToTTSResponse(BaseModel):
     audio_url: Optional[str] = Field(None, description="URL to access the generated audio")
     session_id: str = Field(..., description="Session identifier for tracking")
     emotion: Optional[str] = Field(None, description="Emotion detected or processed")
+    model_emotion: Optional[str] = Field(None, description="Emotion the 3D model should display")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata")
 
 class MultiModalEmotionInput(BaseModel):

@@ -107,8 +107,12 @@ class MultiModalService:
 
             
             # Generate response using LLM
+<<<<<<< Updated upstream
             response_text, response_id = await llm_service.process_multimodal_input(multimodal_input)
 
+=======
+            response_text, response_id, model_emotion = await llm_service.process_multimodal_input(multimodal_input)
+>>>>>>> Stashed changes
             
             # Synthesize speech using ElevenLabs
             audio_url, full_path = await elevenlabs_service.synthesize_speech(
@@ -123,11 +127,13 @@ class MultiModalService:
                 audio_url=audio_url,
                 session_id=session_id,
                 emotion=semantic_emotion,  # Use semantic emotion as primary
+                model_emotion=model_emotion,  # Add the model's emotion response
                 metadata={
                     "processing_id": processing_id,
                     "semantic_emotion": semantic_emotion,
                     "tonal_emotion": tonal_emotion,
                     "facial_emotion": facial_emotion,
+                    "model_emotion": model_emotion,
                     "audio_duration": audio_duration
                 }
             )
