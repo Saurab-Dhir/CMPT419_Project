@@ -63,3 +63,5 @@ tone_classification/data/Custom/
 /webcam_audio_debug
 webcam_audio_debug/webcam_20250401_134617_session_.webm
 /debug/faces
+/debug
+/models

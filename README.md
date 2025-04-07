@@ -101,11 +101,28 @@ LLM_API_KEY=your_gemini_api_key
 pip install deepface
 ```
 
-## Running the Application
+## Setting Up the Project
 
-1. Start the server:
+## Install Dependencies
 ```bash
-python python -m uvicorn app.main:app --reload
+pip install -r requirements.txt
+```
+
+## Model Setup
+For face detection and emotion analysis to work properly, you need to set up the required model files:
+
+```bash
+python setup_models.py
+```
+
+This script will:
+1. Download the dlib shape predictor model for facial landmarks
+2. Download the OpenCV DNN face detector model
+3. Create a placeholder for the emotion classifier model
+
+## Running the Application
+```bash
+python -m uvicorn app.main:app --reload
 ```
 
 2. Open your browser and navigate to:

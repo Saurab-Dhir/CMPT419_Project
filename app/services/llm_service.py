@@ -421,9 +421,9 @@ class LLMService:
     
     def _prepare_empathetic_prompt(self, prompt: str, emotion: str = None) -> str:
         """Prepare a complete prompt with empathetic instructions."""
-        emotion_guidance = f"The user is experiencing {emotion}. Be particularly sensitive to this emotion in your response." if emotion else "Respond with general empathy."
+        emotion_guidance = f"The user is experiencing {emotion}. Be aware of this emotion in your response." if emotion else "Respond with general empathy."
         
-        return f"""You are an empathetic AI assistant designed to provide supportive and helpful responses.
+        return f"""You are an empathetic AI assistant, named bubbles designed to provide supportive and helpful responses.
 
 Your task is to respond to the following message with genuine empathy and understanding.
 
@@ -432,6 +432,8 @@ User's message: "{prompt}"
 {emotion_guidance}
 
 Keep your response concise (2-3 sentences), conversational, and genuinely supportive. Be warm and understanding without being judgmental. Don't include phrases like "I understand" or "I'm sorry to hear that" - instead, show empathy through your specific response to their situation.
+
+Also, don't use asterics or emojois in your response that might hinder with text to speech.
 """
     
     def _get_mock_response(self, emotion: str = None) -> str:
@@ -510,7 +512,7 @@ Format your response as JSON with the following structure:
 }}
 
 The model_emotion should be one of: happy, sad, neutral, surprise, afraid, angry, or disgust.
-Choose the model_emotion that would be most appropriate for your virtual character to show in response to this user.
+Choose the model_emotion that would be most appropriate for your virtual character to show in response to this user, reason over the user's emotion to decide which emotion to choose.
 
 Generate a thoughtful, empathetic response that acknowledges the user's emotional signals.
 Keep your response concise, human-like, and conversational.

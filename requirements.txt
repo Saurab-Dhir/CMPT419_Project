@@ -22,7 +22,7 @@ pyyaml>=5.1.0
 tqdm>=4.50.0
 tf-keras
 deepface>=0.0.75
-# dlib>=19.21.0
+dlib>=19.21.0
 mediapipe>=0.8.9
 torch
 librosa
