@@ -105,12 +105,12 @@ pip install deepface
 
 1. Start the server:
 ```bash
-python run.py
+python python -m uvicorn app.main:app --reload
 ```
 
 2. Open your browser and navigate to:
 ```
-http://localhost:8000/webcam
+http://localhost:8000/3d-conversation
 ```
 
 3. Allow access to your webcam and microphone when prompted
