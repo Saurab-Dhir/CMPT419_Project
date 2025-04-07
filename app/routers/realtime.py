@@ -60,7 +60,11 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
         
         while True:
             # Receive message from client
-            data = await websocket.receive_text()
+            try:
+                data = await websocket.receive_text()
+            except WebSocketDisconnect:
+                print(f"Client {client_id} disconnected")
+                break
             
             try:
                 message = json.loads(data)
@@ -68,21 +72,29 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                 session_id = message.get("session_id")
                 
                 if not session_id:
-                    await websocket.send_json({
-                        "error": "session_id is required",
-                        "status": "error"
-                    })
+                    try:
+                        await websocket.send_json({
+                            "error": "session_id is required",
+                            "status": "error"
+                        })
+                    except Exception as e:
+                        print(f"Error sending error message: {str(e)}")
                     continue
                 
                 if message_type == "session_start":
                     # Initialize or reset session data
                     audio_buffers[client_id] = []
                     recent_frames[client_id] = None
-                    await websocket.send_json({
-                        "status": "success",
-                        "message": "Session started",
-                        "session_id": session_id
-                    })
+                    try:
+                        await websocket.send_json({
+                            "status": "success",
+                            "message": "Session started",
+                            "session_id": session_id
+                        })
+                    except Exception as e:
+                        print(f"Error acknowledging session start: {str(e)}")
+                        if websocket.client_state == WebSocketState.DISCONNECTED:
+                            break
                 
                 elif message_type == "session_end":
                     # Clean up session data
@@ -90,11 +102,16 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                         audio_buffers[client_id] = []
                     if client_id in recent_frames:
                         del recent_frames[client_id]
-                    await websocket.send_json({
-                        "status": "success",
-                        "message": "Session ended",
-                        "session_id": session_id
-                    })
+                    try:
+                        await websocket.send_json({
+                            "status": "success",
+                            "message": "Session ended",
+                            "session_id": session_id
+                        })
+                    except Exception as e:
+                        print(f"Error acknowledging session end: {str(e)}")
+                        if websocket.client_state == WebSocketState.DISCONNECTED:
+                            break
                 
                 elif message_type == "audio":
                     # Process audio chunk
@@ -126,40 +143,61 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                             
                         # If this is the final chunk or we've accumulated enough audio
                         audio_duration = message.get("duration", 0)
-                        if is_final:
-                            print(f"🔊 Received final audio chunk, processing {len(audio_buffers[client_id])} chunks with duration {audio_duration}s")
-                            # Process immediately if this is the final chunk
+                        if is_final or len(audio_buffers[client_id]) >= 10 or audio_duration >= 3.0:
+                            print(f"🔊 Processing audio: {len(audio_buffers[client_id])} chunks with duration {audio_duration}s")
+                            # Process if we have a video frame available
                             if client_id in recent_frames and recent_frames[client_id] is not None:
-                                # Set up immediate processing of the final audio
-                                asyncio.create_task(process_multimodal_data(websocket, client_id, session_id, audio_duration))
+                                # Create a background task to process the data
+                                # This prevents blocking the WebSocket receive loop
+                                asyncio.create_task(
+                                    process_multimodal_data_safely(websocket, client_id, session_id, audio_duration)
+                                )
                                 
-                                # Acknowledge receipt of final chunk
-                                await websocket.send_json({
-                                    "status": "processing",
-                                    "message": "Processing final audio submission...",
-                                    "session_id": session_id
-                                })
+                                # Acknowledge receipt of audio
+                                try:
+                                    await websocket.send_json({
+                                        "status": "processing",
+                                        "message": "Processing audio and video...",
+                                        "session_id": session_id
+                                    })
+                                except Exception as e:
+                                    print(f"Error acknowledging audio processing: {str(e)}")
+                                    if websocket.client_state == WebSocketState.DISCONNECTED:
+                                        break
                             else:
+                                try:
+                                    await websocket.send_json({
+                                        "error": "No video frame available for processing",
+                                        "status": "error",
+                                        "session_id": session_id
+                                    })
+                                except Exception as e:
+                                    print(f"Error sending error message: {str(e)}")
+                                    if websocket.client_state == WebSocketState.DISCONNECTED:
+                                        break
+                        else:
+                            try:
                                 await websocket.send_json({
-                                    "error": "No video frame available for processing",
-                                    "status": "error",
+                                    "status": "buffering",
+                                    "message": f"Audio received ({len(audio_buffers[client_id])} chunks) and buffering",
                                     "session_id": session_id
                                 })
-                        elif audio_duration >= 1.5 and client_id in recent_frames and recent_frames[client_id] is not None:
-                            # Only process if we have enough accumulated data and not the final chunk
-                            await websocket.send_json({
-                                "status": "buffering",
-                                "message": f"Audio received ({len(audio_buffers[client_id])} chunks) and buffering",
-                                "session_id": session_id
-                            })
-                        else:
-                            await websocket.send_json({
-                                "status": "buffering",
-                                "message": f"Audio received ({len(audio_buffers[client_id])} chunks) and buffering",
-                                "session_id": session_id
-                            })
+                            except Exception as e:
+                                print(f"Error acknowledging audio buffer: {str(e)}")
+                                if websocket.client_state == WebSocketState.DISCONNECTED:
+                                    break
                     except Exception as e:
                         print(f"Error processing audio: {str(e)}")
+                        try:
+                            await websocket.send_json({
+                                "error": f"Audio processing error: {str(e)}",
+                                "status": "error",
+                                "session_id": session_id
+                            })
+                        except Exception as send_err:
+                            print(f"Error sending error message: {str(send_err)}")
+                            if websocket.client_state == WebSocketState.DISCONNECTED:
+                                break
                 
                 elif message_type == "video":
                     # Process video frame
@@ -174,30 +212,55 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
                     # Store the frame as BytesIO object instead of numpy array
                     recent_frames[client_id] = video_io
                     
-                    await websocket.send_json({
-                        "status": "success",
-                        "message": "Video frame received",
-                        "session_id": session_id
-                    })
+                    try:
+                        await websocket.send_json({
+                            "status": "success",
+                            "message": "Video frame received",
+                            "session_id": session_id
+                        })
+                    except Exception as e:
+                        print(f"Error acknowledging video frame: {str(e)}")
+                        if websocket.client_state == WebSocketState.DISCONNECTED:
+                            break
                 
                 else:
-                    await websocket.send_json({
-                        "error": f"Unknown message type: {message_type}",
-                        "status": "error"
-                    })
+                    try:
+                        await websocket.send_json({
+                            "error": f"Unknown message type: {message_type}",
+                            "status": "error"
+                        })
+                    except Exception as e:
+                        print(f"Error sending error message: {str(e)}")
+                        if websocket.client_state == WebSocketState.DISCONNECTED:
+                            break
             
             except json.JSONDecodeError:
-                await websocket.send_json({
-                    "error": "Invalid JSON",
-                    "status": "error"
-                })
+                try:
+                    await websocket.send_json({
+                        "error": "Invalid JSON",
+                        "status": "error"
+                    })
+                except Exception as e:
+                    print(f"Error sending error message: {str(e)}")
+                    if websocket.client_state == WebSocketState.DISCONNECTED:
+                        break
             except Exception as e:
-                await websocket.send_json({
-                    "error": str(e),
-                    "status": "error"
-                })
+                try:
+                    await websocket.send_json({
+                        "error": str(e),
+                        "status": "error"
+                    })
+                except Exception as send_err:
+                    print(f"Error sending error message: {str(send_err)}")
+                    if websocket.client_state == WebSocketState.DISCONNECTED:
+                        break
     
     except WebSocketDisconnect:
+        print(f"Client {client_id} disconnected")
+    except Exception as e:
+        print(f"Unexpected error in WebSocket endpoint: {str(e)}")
+        traceback.print_exc()
+    finally:
         # Clean up when client disconnects
         if client_id in active_connections:
             del active_connections[client_id]
@@ -205,6 +268,27 @@ async def websocket_endpoint(websocket: WebSocket, client_id: str):
             del audio_buffers[client_id]
         if client_id in recent_frames:
             del recent_frames[client_id]
+        print(f"Cleaned up resources for client {client_id}")
+
+async def process_multimodal_data_safely(websocket: WebSocket, client_id: str, session_id: str, audio_duration: float):
+    """Wrapper around process_multimodal_data with additional error handling"""
+    try:
+        await process_multimodal_data(websocket, client_id, session_id, audio_duration)
+    except WebSocketDisconnect:
+        print(f"WebSocket disconnected during processing for client {client_id}")
+    except Exception as e:
+        print(f"Error in process_multimodal_data: {str(e)}")
+        traceback.print_exc()
+        # Try to notify the client about the error
+        try:
+            if websocket.client_state != WebSocketState.DISCONNECTED:
+                await websocket.send_json({
+                    "error": f"Processing error: {str(e)}",
+                    "status": "error",
+                    "session_id": session_id
+                })
+        except Exception as send_err:
+            print(f"Could not send error to client: {str(send_err)}")
 
 async def process_multimodal_data(websocket: WebSocket, client_id: str, session_id: str, audio_duration: float):
     """Process accumulated audio and the most recent video frame."""
@@ -553,7 +637,7 @@ async def process_multimodal_data(websocket: WebSocket, client_id: str, session_
         
         # Generate response
         try:
-            response_text, response_id = await llm_service.process_multimodal_input(multimodal_input)
+            response_text, response_id, model_emotion = await llm_service.process_multimodal_input(multimodal_input)
             
             # Check if we've exceeded the timeout
             if time.time() - start_time > timeout:
@@ -604,6 +688,25 @@ async def process_multimodal_data(websocket: WebSocket, client_id: str, session_
         
         # Send the result back to the client
         await websocket.send_json(response)
+        
+        # Send an updated emotion analysis event for the 3D animation viewer with the model_emotion
+        await websocket.send_json({
+            "type": "emotion_analysis",
+            "emotion": model_emotion,  # Use the model's emotion response instead of facial_emotion
+            "confidence": 1.0,
+            "timestamp": time.time(),
+            "session_id": session_id,
+            "metadata": {
+                "semantic_emotion": semantic_emotion,
+                "tonal_emotion": tonal_emotion,
+                "facial_emotion": facial_emotion,
+                "model_emotion": model_emotion
+            }
+        })
+        
+        # Log the emotion we're sending
+        print(f"🎭 Sending emotion to 3D model: {model_emotion} (from LLM response)")
+        print(f"🎭 Detected emotions - Semantic: {semantic_emotion}, Tonal: {tonal_emotion}, Facial: {facial_emotion}")
         
     except Exception as e:
         error_msg = str(e)

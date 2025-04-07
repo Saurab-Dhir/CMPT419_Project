@@ -44,6 +44,7 @@ os.makedirs("static/audio", exist_ok=True)
 # Mount the static directory
 app.mount("/audio", StaticFiles(directory="static/audio"), name="audio")
 app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/animations", StaticFiles(directory="animations"), name="animations")
 
 @app.get("/")
 async def root():
@@ -56,11 +57,23 @@ async def webcam_interface():
     from fastapi.responses import FileResponse
     return FileResponse("static/webcam.html")
 
+@app.get("/3d-conversation")
+async def conversation_interface():
+    """Serve the 3D conversation interface with integrated webcam."""
+    from fastapi.responses import FileResponse
+    return FileResponse("static/3d-conversation.html")
+
 @app.get("/websocket-test")
-async def websocket_test_interface():
+async def websocket_test():
     """Serve the WebSocket test interface."""
     from fastapi.responses import FileResponse
-    return FileResponse("static/websocket_test.html")
+    return FileResponse("static/websocket-test.html")
+
+@app.get("/3d-emotions")
+async def animation_interface():
+    """Serve the 3D animation viewer interface."""
+    from fastapi.responses import FileResponse
+    return FileResponse("static/3d_animations.html")
 
 @app.get("/health")
 async def health_check():

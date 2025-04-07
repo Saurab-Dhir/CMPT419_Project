@@ -72,10 +72,32 @@ class DeepFaceService:
             
             # Try to load DNN face detector if available
             try:
-                model_file = os.path.join(cv2.data.haarcascades, "..", "face_detector", "opencv_face_detector_uint8.pb")
-                config_file = os.path.join(cv2.data.haarcascades, "..", "face_detector", "opencv_face_detector.pbtxt")
+                # First check in our models directory
+                model_paths = [
+                    os.path.join("models", "opencv_face_detector_uint8.pb"),
+                    os.path.join(cv2.data.haarcascades, "..", "face_detector", "opencv_face_detector_uint8.pb")
+                ]
+                config_paths = [
+                    os.path.join("models", "opencv_face_detector.pbtxt"),
+                    os.path.join(cv2.data.haarcascades, "..", "face_detector", "opencv_face_detector.pbtxt")
+                ]
                 
-                if os.path.exists(model_file) and os.path.exists(config_file):
+                model_file = None
+                config_file = None
+                
+                # Find first available model and config files
+                for path in model_paths:
+                    if os.path.exists(path):
+                        model_file = path
+                        break
+                
+                for path in config_paths:
+                    if os.path.exists(path):
+                        config_file = path
+                        break
+                
+                if model_file and config_file:
+                    logger.info(f"Loading DNN face detector from {model_file} and {config_file}")
                     self.face_net = cv2.dnn.readNetFromTensorflow(model_file, config_file)
                     self.has_dnn_detector = True
                     logger.info("DNN face detector loaded successfully")
@@ -91,8 +113,19 @@ class DeepFaceService:
             
             # Try to load pre-trained emotion classifier if available
             try:
-                emotion_model_path = os.path.join(cv2.data.haarcascades, "..", "emotion_ferplus", "emotion_ferplus.onnx")
-                if os.path.exists(emotion_model_path):
+                emotion_model_paths = [
+                    os.path.join("models", "emotion_ferplus.onnx"),
+                    os.path.join(cv2.data.haarcascades, "..", "emotion_ferplus", "emotion_ferplus.onnx")
+                ]
+                
+                emotion_model_path = None
+                for path in emotion_model_paths:
+                    if os.path.exists(path):
+                        emotion_model_path = path
+                        break
+                
+                if emotion_model_path:
+                    logger.info(f"Loading emotion classifier from {emotion_model_path}")
                     self.emotion_net = cv2.dnn.readNetFromONNX(emotion_model_path)
                     logger.info("Emotion classifier loaded successfully")
                 else:
@@ -109,19 +142,20 @@ class DeepFaceService:
                 self.face_detector = dlib.get_frontal_face_detector()
                 
                 # Try to locate the shape predictor model file
-                predictor_path = os.path.join(cv2.data.haarcascades, "..", "shape_predictor_68_face_landmarks.dat")
-                if not os.path.exists(predictor_path):
-                    # Alternative paths to check
-                    alt_paths = [
-                        "shape_predictor_68_face_landmarks.dat",
-                        os.path.join("models", "shape_predictor_68_face_landmarks.dat")
-                    ]
-                    for path in alt_paths:
-                        if os.path.exists(path):
-                            predictor_path = path
-                            break
+                predictor_paths = [
+                    os.path.join("models", "shape_predictor_68_face_landmarks.dat"),
+                    os.path.join(cv2.data.haarcascades, "..", "shape_predictor_68_face_landmarks.dat"),
+                    "shape_predictor_68_face_landmarks.dat"
+                ]
                 
-                if os.path.exists(predictor_path):
+                predictor_path = None
+                for path in predictor_paths:
+                    if os.path.exists(path):
+                        predictor_path = path
+                        break
+                
+                if predictor_path:
+                    logger.info(f"Loading shape predictor from {predictor_path}")
                     self.shape_predictor = dlib.shape_predictor(predictor_path)
                     self.has_dlib = True
                     logger.info("dlib facial landmark detector loaded successfully")
@@ -166,6 +200,9 @@ class DeepFaceService:
         Returns:
             Normalized emotion name
         """
+        if not emotion:
+            return "neutral"
+            
         emotion = emotion.lower().strip()
         
         # Try direct match first
@@ -176,8 +213,31 @@ class DeepFaceService:
         for standard, variants in self.STANDARD_EMOTIONS.items():
             if emotion in variants:
                 return standard
+                
+        # Try partial matching for better fuzzy matching
+        for standard, variants in self.STANDARD_EMOTIONS.items():
+            for variant in variants:
+                if variant in emotion or emotion in variant:
+                    print(f"🔍 Fuzzy matched emotion '{emotion}' to standard '{standard}'")
+                    return standard
+        
+        # Map any additional DeepFace-specific emotions
+        deepface_mapping = {
+            "frustration": "angry",
+            "confusion": "surprise",
+            "disappointment": "sad",
+            "excitement": "happy",
+            "anticipation": "surprise",
+            "distress": "sad",
+        }
+        
+        if emotion in deepface_mapping:
+            mapped = deepface_mapping[emotion]
+            print(f"🔍 Mapped DeepFace emotion '{emotion}' to '{mapped}'")
+            return mapped
         
         # Default to neutral if no match
+        print(f"⚠️ Unknown emotion '{emotion}', defaulting to neutral")
         return "neutral"
     
     def _normalize_gender(self, gender: str) -> str:
@@ -437,6 +497,9 @@ class DeepFaceService:
         logger.info("Analyzing face in image")
         print("🔎 Analyzing face for emotions...")
         
+        # Enable debug visualization
+        DEBUG_VISUALIZATION = True
+        
         try:
             # Convert image path to numpy array if needed
             if isinstance(image, str):
@@ -466,27 +529,48 @@ class DeepFaceService:
                 logger.warning("Empty face region")
                 return {"emotion": "neutral", "emotion_confidence": 0.0}
                 
-            # Save face image for debugging (commented out for production)
-            import os
-            debug_dir = os.path.join("debug", "faces")
-            os.makedirs(debug_dir, exist_ok=True)
-            debug_file = os.path.join(debug_dir, f"face_{datetime.now().strftime('%Y%m%d_%H%M%S')}.jpg")
-            self.cv2.imwrite(debug_file, face_img)
-            print(f"🔎 Saved face image for debugging: {debug_file}")
+            # Save face image for debugging
+            if DEBUG_VISUALIZATION:
+                import os
+                debug_dir = os.path.join("debug", "faces")
+                os.makedirs(debug_dir, exist_ok=True)
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                debug_file = os.path.join(debug_dir, f"face_{timestamp}.jpg")
+                self.cv2.imwrite(debug_file, face_img)
+                print(f"🔎 Saved face image for debugging: {debug_file}")
             
             # Try DeepFace first if available
             if self.has_deepface:
                 try:
                     print("🔎 Using DeepFace for emotion analysis")
-                    face_analysis = self.deepface.analyze(
-                        face_img, 
-                        actions=['emotion'],
-                        enforce_detection=False
-                    )
+                    # Use multiple detection backends for better results
+                    backends = ['opencv', 'retinaface', 'mtcnn', 'ssd']
+                    
+                    # Try different backends until one works
+                    face_analysis = None
+                    used_backend = None
+                    
+                    for backend in backends:
+                        try:
+                            print(f"🔎 Trying DeepFace with {backend} backend")
+                            face_analysis = self.deepface.analyze(
+                                face_img, 
+                                actions=['emotion'],
+                                detector_backend=backend,
+                                enforce_detection=False,
+                                silent=True
+                            )
+                            if face_analysis and len(face_analysis) > 0:
+                                used_backend = backend
+                                print(f"🔎 Successfully detected with {backend} backend")
+                                break
+                        except Exception as backend_e:
+                            print(f"🔎 {backend} backend failed: {str(backend_e)}")
+                            continue
                     
                     if face_analysis and len(face_analysis) > 0:
                         analysis = face_analysis[0]
-                        print(f"🔎 DeepFace analysis raw result: {analysis}")
+                        print(f"🔎 DeepFace analysis with {used_backend} backend raw result: {analysis}")
                         
                         # Extract emotion
                         emotions = analysis.get('emotion', {})
@@ -495,8 +579,23 @@ class DeepFaceService:
                             emotions_list = [(e, c) for e, c in emotions.items()]
                             emotions_list.sort(key=lambda x: x[1], reverse=True)
                             
+                            # Print all emotions with their confidence for debugging
+                            print("🔎 All detected emotions:")
+                            for emotion, confidence in emotions_list:
+                                print(f"  - {emotion}: {confidence:.2f}%")
+                            
                             # Get top emotions
                             primary_emotion, primary_confidence = emotions_list[0]
+                            
+                            # Adjust emotion detection threshold - if neutral is barely winning, use the second emotion
+                            if primary_emotion == "neutral" and len(emotions_list) > 1:
+                                second_emotion, second_confidence = emotions_list[1]
+                                # If the second emotion is close in confidence (within 15%), use it instead
+                                if primary_confidence - second_confidence < 15:
+                                    print(f"🔎 Overriding neutral with close second emotion: {second_emotion} ({second_confidence:.2f}%)")
+                                    primary_emotion = second_emotion
+                                    primary_confidence = second_confidence
+                            
                             primary_emotion = self._normalize_emotion(primary_emotion)
                             
                             # Get secondary emotions (excluding primary)
@@ -512,12 +611,52 @@ class DeepFaceService:
                             print(f"🔎 DeepFace detected emotion: {primary_emotion} ({primary_confidence:.2f})")
                             print(f"🔎 Secondary emotions: {secondary_emotions}")
                             
+                            # Save annotated face with detected emotion for debugging
+                            if DEBUG_VISUALIZATION:
+                                import os
+                                debug_dir = os.path.join("debug", "emotions")
+                                os.makedirs(debug_dir, exist_ok=True)
+                                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                                
+                                # Create a copy for annotation
+                                annotated_face = face_img.copy()
+                                
+                                # Draw emotion text
+                                text = f"{primary_emotion} ({primary_confidence:.2f})"
+                                cv_font = self.cv2.FONT_HERSHEY_SIMPLEX
+                                text_size = self.cv2.getTextSize(text, cv_font, 0.7, 2)[0]
+                                text_x = (annotated_face.shape[1] - text_size[0]) // 2
+                                
+                                # Draw colored background based on emotion
+                                color_map = {
+                                    "happy": (0, 255, 0),    # Green
+                                    "sad": (255, 0, 0),      # Blue
+                                    "angry": (0, 0, 255),    # Red
+                                    "fear": (255, 0, 255),   # Purple
+                                    "surprise": (0, 255, 255), # Yellow
+                                    "disgust": (0, 128, 128), # Brown
+                                    "neutral": (128, 128, 128) # Gray
+                                }
+                                
+                                color = color_map.get(primary_emotion, (255, 255, 255))
+                                self.cv2.putText(annotated_face, text, (text_x, 30), cv_font, 0.7, color, 2)
+                                
+                                # Add second emotion if available
+                                if secondary_emotions:
+                                    second_emotion, second_conf = list(secondary_emotions.items())[0]
+                                    second_text = f"{second_emotion} ({second_conf:.2f})"
+                                    self.cv2.putText(annotated_face, second_text, (text_x, 60), cv_font, 0.5, color_map.get(second_emotion, (200, 200, 200)), 1)
+                                
+                                debug_file = os.path.join(debug_dir, f"emotion_{primary_emotion}_{timestamp}.jpg")
+                                self.cv2.imwrite(debug_file, annotated_face)
+                                print(f"🔎 Saved annotated emotion image: {debug_file}")
+                            
                             return {
                                 "emotion": primary_emotion,
                                 "emotion_confidence": primary_confidence,
                                 "secondary_emotions": secondary_emotions
                             }
-                    
+                
                 except Exception as e:
                     logger.warning(f"DeepFace analysis failed: {str(e)}")
                     print(f"⚠️ DeepFace analysis error: {str(e)}")
