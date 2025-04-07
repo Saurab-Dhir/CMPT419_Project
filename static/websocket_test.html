@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        #log {
+            height: 300px;
+            width: 100%;
+            border: 1px solid #ccc;
+            padding: 10px;
+            overflow-y: scroll;
+            margin-bottom: 10px;
+            font-family: monospace;
+            background-color: #f5f5f5;
+        }
+        button {
+            padding: 10px;
+            margin-right: 10px;
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #3367d6;
+        }
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-left: 4px solid #4285f4;
+            background-color: #e8f0fe;
+        }
+    </style>
+</head>
+<body>
+    <h1>WebSocket Connection Test</h1>
+    
+    <div id="status" class="status">Status: Disconnected</div>
+    
+    <div>
+        <button id="connect-btn">Connect</button>
+        <button id="send-ping-btn" disabled>Send Ping</button>
+        <button id="disconnect-btn" disabled>Disconnect</button>
+    </div>
+    
+    <h3>WebSocket Log:</h3>
+    <div id="log"></div>
+    
+    <script>
+        // DOM elements
+        const connectBtn = document.getElementById('connect-btn');
+        const sendPingBtn = document.getElementById('send-ping-btn');
+        const disconnectBtn = document.getElementById('disconnect-btn');
+        const statusDiv = document.getElementById('status');
+        const logDiv = document.getElementById('log');
+        
+        // WebSocket variables
+        let ws;
+        let clientId = 'test_client_' + Math.random().toString(36).substring(2, 15);
+        let sessionId = 'test_session_' + Date.now();
+        
+        // Log message
+        function log(message, type = 'info') {
+            const time = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.innerHTML = `<span style="color: ${type === 'error' ? 'red' : type === 'success' ? 'green' : 'blue'}">
+                              [${time}] ${message}</span>`;
+            logDiv.appendChild(entry);
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+        
+        // Update status
+        function updateStatus(message) {
+            statusDiv.textContent = 'Status: ' + message;
+        }
+        
+        // Connect button click handler
+        connectBtn.addEventListener('click', async () => {
+            try {
+                log('Attempting to connect to WebSocket...');
+                
+                // Test multiple WebSocket URL formats
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const host = window.location.host;
+                
+                // Options for WebSocket URLs
+                const wsUrls = [
+                    `${protocol}//${host}/api/v1/realtime/ws/${clientId}`,
+                    `${protocol}//${host}/realtime/ws/${clientId}`,
+                    `${protocol}//${host}/ws/${clientId}`
+                ];
+                
+                // Try each URL in sequence
+                let connected = false;
+                
+                for (const wsUrl of wsUrls) {
+                    if (connected) break;
+                    
+                    log(`Trying WebSocket URL: ${wsUrl}`);
+                    ws = new WebSocket(wsUrl);
+                    
+                    // Wait for connection to succeed or fail
+                    try {
+                        await new Promise((resolve, reject) => {
+                            ws.onopen = () => {
+                                connected = true;
+                                log(`WebSocket connected to ${wsUrl}`, 'success');
+                                updateStatus('Connected');
+                                connectBtn.disabled = true;
+                                sendPingBtn.disabled = false;
+                                disconnectBtn.disabled = false;
+                                resolve();
+                            };
+                            
+                            ws.onerror = (error) => {
+                                log(`Failed to connect to ${wsUrl}: ${error}`, 'error');
+                                reject(error);
+                            };
+                            
+                            // If we don't get an open or error event within 3 seconds, try the next URL
+                            setTimeout(() => {
+                                if (!connected) {
+                                    log(`Connection timeout for ${wsUrl}`, 'error');
+                                    reject(new Error('Connection timeout'));
+                                }
+                            }, 3000);
+                        });
+                        
+                        // If we reach here, we successfully connected
+                        
+                        // Setup message handler
+                        ws.onmessage = (event) => {
+                            log(`Received: ${event.data}`, 'success');
+                            try {
+                                const data = JSON.parse(event.data);
+                                log(`Parsed message: ${JSON.stringify(data, null, 2)}`, 'info');
+                            } catch (e) {
+                                log(`Not JSON: ${e.message}`, 'error');
+                            }
+                        };
+                        
+                        // Setup close handler
+                        ws.onclose = () => {
+                            log('WebSocket closed', 'error');
+                            updateStatus('Disconnected');
+                            connectBtn.disabled = false;
+                            sendPingBtn.disabled = true;
+                            disconnectBtn.disabled = true;
+                        };
+                        
+                        // Send session start message
+                        ws.send(JSON.stringify({
+                            type: 'session_start',
+                            session_id: sessionId,
+                            timestamp: Date.now()
+                        }));
+                        
+                        log('Sent session_start message');
+                        break;
+                        
+                    } catch (error) {
+                        log(`Connection failed: ${error.message}`, 'error');
+                        ws = null;
+                    }
+                }
+                
+                if (!connected) {
+                    log('Failed to connect to any WebSocket endpoint', 'error');
+                    updateStatus('Connection failed');
+                }
+                
+            } catch (error) {
+                log(`Error: ${error.message}`, 'error');
+                updateStatus('Error: ' + error.message);
+            }
+        });
+        
+        // Send ping button click handler
+        sendPingBtn.addEventListener('click', () => {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const message = {
+                    type: 'ping',
+                    session_id: sessionId,
+                    timestamp: Date.now()
+                };
+                
+                ws.send(JSON.stringify(message));
+                log(`Sent: ${JSON.stringify(message)}`);
+            } else {
+                log('WebSocket not connected', 'error');
+            }
+        });
+        
+        // Disconnect button click handler
+        disconnectBtn.addEventListener('click', () => {
+            if (ws) {
+                if (ws.readyState === WebSocket.OPEN) {
+                    const message = {
+                        type: 'session_end',
+                        session_id: sessionId,
+                        timestamp: Date.now()
+                    };
+                    
+                    ws.send(JSON.stringify(message));
+                    log(`Sent session_end message`);
+                }
+                
+                ws.close();
+                log('WebSocket closed by user');
+                updateStatus('Disconnected');
+                connectBtn.disabled = false;
+                sendPingBtn.disabled = true;
+                disconnectBtn.disabled = true;
+            }
+        });
+        
+        // Initialize
+        log('WebSocket test page loaded');
+        log(`Client ID: ${clientId}`);
+        log(`Session ID: ${sessionId}`);
+    </script>
+</body>
+</html> 

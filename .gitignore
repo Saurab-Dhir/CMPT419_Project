@@ -49,7 +49,6 @@ htmlcov/
 # OS specific
 .DS_Store
 Thumbs.db 
-/static
 /output
 
 # Ignore data folders
@@ -65,3 +64,4 @@ webcam_audio_debug/webcam_20250401_134617_session_.webm
 /debug/faces
 /debug
 /models
+/static/audio
