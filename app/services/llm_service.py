@@ -462,15 +462,10 @@ Keep your response concise (2-3 sentences), conversational, and genuinely suppor
         """
         # Extract the user's speech and emotions
         user_speech = multimodal_input.user_speech
-        fused_emotion = multimodal_input.fused_emotion
+        semantic_emotion = multimodal_input.semantic_emotion or "neutral"
+        tonal_emotion = multimodal_input.tonal_emotion or "neutral"
+        facial_emotion = multimodal_input.facial_emotion or "neutral"
         
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-        # Construct a detailed prompt that includes emotional information
-        prompt=f"""Reply to the user as a friend. Consider the following when generating a response:
-=======
-=======
->>>>>>> Stashed changes
         # Emotion mapping for model response
         emotion_mapping = {
             "happy": "This user is expressing happiness, so your 3D model should respond with a happy expression.",
@@ -487,30 +482,21 @@ Keep your response concise (2-3 sentences), conversational, and genuinely suppor
         
         # Construct a detailed prompt that includes emotional information and asks for model emotion response
         prompt = f"""Reply to the user as a real human being nothing more nothing less and consider the following:
->>>>>>> Stashed changes
 
 USER INPUT:
 {{
-"user_speech": "{user_speech}",
-"fused_emotion": {fused_emotion}
+  "user_speech": "{user_speech}",
+  "semantic_emotion": "{semantic_emotion}",
+  "tonal_emotion": "{tonal_emotion}",
+  "facial_emotion": "{facial_emotion}"
 }}
 
-USER INPUT DESCRIPTION:
-1. The user_speech is a transcript of what they said.
-2. The fused_emotion is a combined prediction of emotions based on predictions on individual cues of tone, facial expression, and semantics.
-
-<<<<<<< Updated upstream
-<<<<<<< Updated upstream
-CONTEXT:
-{self.__context}
-
 INSTRUCTIONS:
-Generate a thoughtful, empathetic response that acknowledges these emotional signals. Account for the context of the conversation and try to maintain the catchball in the conversation (maybe by responding with a followup question or some other way that is natural in casual conversations).
-Be natural and keep your response concise (in most cases under 50 words), human-like, and conversational.
-Do not explicitly mention that you're aware of their emotions unless it feels natural to do so."""
-=======
-=======
->>>>>>> Stashed changes
+1. The user said what is transcribed in user_speech.
+2. The semantic_emotion is what the content of their words suggests.
+3. The tonal_emotion is what their voice tone suggests.
+4. The facial_emotion is what their facial expressions suggest.
+
 {model_emotion_guidance}
 
 Your response needs to include two parts:
@@ -530,7 +516,6 @@ Generate a thoughtful, empathetic response that acknowledges the user's emotiona
 Keep your response concise, human-like, and conversational.
 Do not explicitly mention that you're aware of their emotions unless it feels natural to do so.
 """
->>>>>>> Stashed changes
         
         return prompt
 
