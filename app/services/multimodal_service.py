@@ -108,8 +108,12 @@ class MultiModalService:
             
             # Generate response using LLM
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
             response_text, response_id = await llm_service.process_multimodal_input(multimodal_input)
 
+=======
+            response_text, response_id, model_emotion = await llm_service.process_multimodal_input(multimodal_input)
+>>>>>>> Stashed changes
 =======
             response_text, response_id, model_emotion = await llm_service.process_multimodal_input(multimodal_input)
 >>>>>>> Stashed changes

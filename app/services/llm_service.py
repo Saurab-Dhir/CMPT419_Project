@@ -465,9 +465,12 @@ Keep your response concise (2-3 sentences), conversational, and genuinely suppor
         fused_emotion = multimodal_input.fused_emotion
         
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         # Construct a detailed prompt that includes emotional information
         prompt=f"""Reply to the user as a friend. Consider the following when generating a response:
 =======
+=======
+>>>>>>> Stashed changes
         # Emotion mapping for model response
         emotion_mapping = {
             "happy": "This user is expressing happiness, so your 3D model should respond with a happy expression.",
@@ -497,6 +500,7 @@ USER INPUT DESCRIPTION:
 2. The fused_emotion is a combined prediction of emotions based on predictions on individual cues of tone, facial expression, and semantics.
 
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
 CONTEXT:
 {self.__context}
 
@@ -505,6 +509,8 @@ Generate a thoughtful, empathetic response that acknowledges these emotional sig
 Be natural and keep your response concise (in most cases under 50 words), human-like, and conversational.
 Do not explicitly mention that you're aware of their emotions unless it feels natural to do so."""
 =======
+=======
+>>>>>>> Stashed changes
 {model_emotion_guidance}
 
 Your response needs to include two parts:
