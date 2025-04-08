@@ -52,9 +52,7 @@ Thumbs.db
 /output
 
 # Ignore data folders
-tone_classification/data/CREMA/
-tone_classification/data/RAVDESS/
-tone_classification/data/Custom/
+tone_classification/data
 /audio_debug
 /audio_debug
 /audio_temp
