@@ -1,0 +1,885 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Conversation Assistant</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+        }
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 10;
+        }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 10;
+            width: 80%;
+            max-width: 600px;
+        }
+        button {
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background-color: #3367d6;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 10;
+        }
+        .response-box {
+            background-color: rgba(66, 133, 244, 0.2);
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        #recording-indicator {
+            width: 20px;
+            height: 20px;
+            background-color: red;
+            border-radius: 50%;
+            display: none;
+            margin-left: 10px;
+        }
+        #recording-indicator.active {
+            display: inline-block;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        #webcam {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 160px;
+            height: 120px;
+            border-radius: 8px;
+            border: 2px solid #4285f4;
+            z-index: 10;
+        }
+        .recording-controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        #transcription {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    
+    <div id="info">
+        <h2>3D Conversation Assistant</h2>
+        <p>Current Emotion: <span id="current-emotion">Happy</span></p>
+    </div>
+    
+    <div id="status" class="status">Status: Disconnected</div>
+    
+    <video id="webcam" autoplay playsinline muted></video>
+    
+    <div id="controls">
+        <div class="recording-controls">
+            <button id="start-btn">Start Session</button>
+            <button id="record-btn" disabled>Start Recording</button>
+            <button id="stop-btn" disabled>Stop Recording</button>
+            <div id="recording-indicator"></div>
+        </div>
+        
+        <div id="transcription" style="display: none;">Your speech will appear here...</div>
+        
+        <div id="response-box" class="response-box" style="display: none;">
+            <h3>AI Response</h3>
+            <div id="response-text">-</div>
+            <audio id="response-audio" controls style="width: 100%; margin-top: 10px; display: none;"></audio>
+        </div>
+        
+        <div style="margin-top: 20px; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 10px;">
+            <!-- <h3>Test Emotions</h3>
+            <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                <button id="test-happy">Happy</button>
+                <button id="test-sad">Sad</button>
+                <button id="test-angry">Angry</button>
+                <button id="test-afraid">Afraid</button>
+                <button id="test-disgust">Disgust</button>
+                <button id="test-surprise">Surprise</button>
+                <button id="test-neutral">Neutral</button>
+            </div> -->
+        </div>
+    </div>
+
+    <!-- Import Three.js from CDN using ES modules -->
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+        }
+    }
+    </script>
+    
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        
+        // DOM elements
+        const currentEmotionSpan = document.getElementById('current-emotion');
+        const statusDiv = document.getElementById('status');
+        const webcamVideo = document.getElementById('webcam');
+        const startBtn = document.getElementById('start-btn');
+        const recordBtn = document.getElementById('record-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const recordingIndicator = document.getElementById('recording-indicator');
+        const transcriptionDiv = document.getElementById('transcription');
+        const responseTextDiv = document.getElementById('response-text');
+        const responseAudio = document.getElementById('response-audio');
+        const responseBox = document.getElementById('response-box');
+        
+        // Animation state
+        const emotionMap = {
+            'neutral': 'neutralIdle',  // Changed to match file names
+            'happy': 'happy',
+            'sad': 'sad',
+            'angry': 'angry',
+            'fear': 'afraid',
+            'afraid': 'afraid',
+            'disgust': 'disgust',
+            'surprise': 'suprise'  // Fixed spelling to match the filename
+        };
+        
+        // Map emotions to their idle versions
+        const idleEmotionMap = {
+            'happy': 'happyIdle',
+            'sad': 'sadIdle',
+            'angry': 'angryIdle',
+            'afraid': 'afraidIdle',
+            'disgust': 'disgustIdle',
+            'suprise': 'supriseIdle',
+            'surprise': 'supriseIdle',
+            'neutral': 'neutralIdle'
+        };
+        
+        // Three.js variables
+        let scene, camera, renderer, clock;
+        let currentModel = null;
+        let currentAnimation = null;
+        let loadedModels = {}; // Store loaded models by emotion key
+        let animationMixers = {}; // Store mixers by emotion key
+        let animationsLoaded = {};
+        let modelAnimations = {};
+        let transitionDuration = 0.5; // Transition duration (seconds)
+        let isTransitioning = false; // Flag to track if we're in the middle of a transition
+        
+        // WebSocket and media variables
+        let ws;
+        let mediaRecorder;
+        let audioChunks = [];
+        let videoStream;
+        let clientId = 'conversation_client_' + Math.random().toString(36).substring(2, 15);
+        let sessionId = 'session_' + Date.now();
+        
+        // Animation file paths
+        const animationFiles = {
+            'neutral': '/animations/NeutralIdle.glb',
+            'neutralIdle': '/animations/NeutralIdle.glb',
+            'happy': '/animations/Happy.glb',
+            'happyIdle': '/animations/HappyIdle.glb',
+            'sad': '/animations/Sad.glb',
+            'sadIdle': '/animations/SadIdle.glb',
+            'angry': '/animations/Angry.glb',
+            'angryIdle': '/animations/AngryIdle.glb',
+            'afraid': '/animations/Afraid.glb',
+            'afraidIdle': '/animations/AfraidIdle.glb',
+            'disgust': '/animations/Disgust.glb',
+            'disgustIdle': '/animations/DisgustIdle.glb',
+            'surprise': '/animations/Suprise.glb',  // Note the spelling in file name
+            'suprise': '/animations/Suprise.glb',
+            'surpriseIdle': '/animations/SupriseIdle.glb',
+            'supriseIdle': '/animations/SupriseIdle.glb'
+        };
+
+        // Initialize everything
+        window.addEventListener('DOMContentLoaded', () => {
+            init3D();
+            setupWebcam();
+            setupButtonListeners();
+        });
+
+        // Initialize Three.js scene
+        function init3D() {
+            // Create scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000);  // Pure black background
+            
+            // Create camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 1.0, 3.0); // Adjusted camera position for larger model
+            
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+            
+            // Add orbit controls
+            const controls = new OrbitControls(camera, renderer.domElement);
+            controls.target.set(0, 0.5, 0); // Adjusted target to focus on model center
+            controls.update();
+            
+            // Add lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2);
+            directionalLight.position.set(1, 2, 3);
+            scene.add(directionalLight);
+            
+            const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            fillLight.position.set(-1, 1, -2);
+            scene.add(fillLight);
+            
+            // Initialize animation clock
+            clock = new THREE.Clock();
+            
+            // Start loading the default model - happy will transition to happyIdle automatically
+            loadModel('happy');
+            
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize);
+            
+            // Start animation loop
+            animate();
+        }
+
+        // Handle window resize
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Load a 3D model with its animation
+        function loadModel(emotionKey) {
+            console.log(`🔍 loadModel called for emotion: ${emotionKey}`);
+            
+            // If already loaded, just play it
+            if (animationsLoaded[emotionKey]) {
+                console.log(`✅ Model ${emotionKey} already loaded, switching to it`);
+                switchToModel(emotionKey);
+                return;
+            }
+            
+            // Show loading in the UI
+            currentEmotionSpan.textContent = `Loading ${emotionKey}...`;
+            
+            // Get the file path
+            const filePath = animationFiles[emotionKey];
+            if (!filePath) {
+                console.error(`❌ No file path found for emotion: ${emotionKey}`);
+                currentEmotionSpan.textContent = `Error: No file for ${emotionKey}`;
+                return;
+            }
+            
+            console.log(`🔄 Loading model: ${emotionKey} from path: ${filePath}`);
+            
+            // Create a GLTF loader
+            const loader = new GLTFLoader();
+            
+            // Load the file
+            loader.load(
+                filePath,
+                function (gltf) {
+                    console.log(`✅ Successfully loaded model: ${emotionKey}`);
+                    console.log(`📊 Animations in file:`, gltf.animations.length);
+                    
+                    const model = gltf.scene;
+                    model.scale.set(4, 4, 4); // Increased model scale
+                    
+                    // Apply special position adjustment for happy and happyIdle emotions to fix position issues
+                    if (emotionKey === 'happy') {
+                        model.position.set(0, -0.1, 0); // Adjusted position for happy emotion
+                        console.log(`⚙️ Applied custom position for happy emotion`);
+                    } else if (emotionKey === 'happyIdle') {
+                        model.position.set(0, -0.1, -0); // Standard position for happyIdle, same as other idle emotions
+                        console.log(`⚙️ Applied custom position for happyIdle emotion`);
+                    } else {
+                        model.position.set(0, -1, 0); // Standard position for other emotions
+                    }
+                    
+                    model.visible = false; // Start hidden
+                    scene.add(model);
+                    
+                    // Store the model
+                    loadedModels[emotionKey] = model;
+                    
+                    // Create a mixer for this model's animations
+                    const mixer = new THREE.AnimationMixer(model);
+                    animationMixers[emotionKey] = mixer;
+                    
+                    // Store all animations from this file
+                    modelAnimations[emotionKey] = gltf.animations;
+                    
+                    // Mark as loaded
+                    animationsLoaded[emotionKey] = true;
+                    
+                    // Always switch to the newly loaded model
+                    console.log(`🎬 Model loaded (${emotionKey}), switching to it`);
+                    switchToModel(emotionKey);
+                },
+                function (xhr) {
+                    const percentComplete = (xhr.loaded / xhr.total) * 100;
+                    console.log(`📊 ${emotionKey} ${Math.round(percentComplete)}% loaded`);
+                },
+                function (error) {
+                    console.error(`❌ Error loading model ${emotionKey}:`, error);
+                    currentEmotionSpan.textContent = `Error loading ${emotionKey}`;
+                }
+            );
+        }
+
+        // Switch to a loaded model
+        function switchToModel(emotionKey) {
+            if (!loadedModels[emotionKey]) {
+                console.error(`❌ Model ${emotionKey} not loaded yet`);
+                return;
+            }
+            
+            console.log(`🔄 Switching to model: ${emotionKey}`);
+            
+            // Hide current model if there is one
+            if (currentModel) {
+                console.log(`🔄 Hiding current model: ${currentEmotionSpan.textContent}`);
+                currentModel.visible = false;
+            }
+            
+            // Show the new model
+            loadedModels[emotionKey].visible = true;
+            currentModel = loadedModels[emotionKey];
+            currentEmotionSpan.textContent = emotionKey;
+            
+            console.log(`✅ Model switched to: ${emotionKey}`);
+            
+            // Play the animation
+            playAnimation(emotionKey);
+        }
+
+        // Play animation for the current model
+        function playAnimation(emotionKey) {
+            if (!animationMixers[emotionKey] || !modelAnimations[emotionKey]) {
+                console.error(`❌ No mixer or animations for ${emotionKey}`);
+                return;
+            }
+            
+            const mixer = animationMixers[emotionKey];
+            const animations = modelAnimations[emotionKey];
+            
+            console.log(`🔄 Playing animation for ${emotionKey}, animations available:`, animations.length);
+            
+            // Stop any current animations on this mixer
+            mixer.stopAllAction();
+            
+            if (animations.length === 0) {
+                console.warn(`⚠️ No animations found for ${emotionKey}`);
+                return;
+            }
+            
+            // Play the first animation
+            const action = mixer.clipAction(animations[0]);
+            
+            // Check if this is a non-idle emotion that has an idle counterpart
+            const isMainEmotion = Object.keys(idleEmotionMap).includes(emotionKey);
+            
+            if (isMainEmotion && !emotionKey.toLowerCase().includes('idle')) {
+                console.log(`✅ This is a main emotion (${emotionKey}), will transition to idle version after completion`);
+                
+                // Set animation to play once (not looping)
+                action.setLoop(THREE.LoopOnce);
+                action.clampWhenFinished = true; // Hold the last frame when finished
+                
+                // Add callback for when animation completes
+                mixer.addEventListener('finished', function onFinished() {
+                    // Remove this event listener to prevent multiple transitions
+                    mixer.removeEventListener('finished', onFinished);
+                    
+                    // Get corresponding idle animation
+                    const idleEmotion = idleEmotionMap[emotionKey];
+                    
+                    if (idleEmotion) {
+                        console.log(`🔄 Main emotion ${emotionKey} finished, transitioning to idle: ${idleEmotion}`);
+                        // Load and play the idle animation
+                        loadModel(idleEmotion);
+                    }
+                });
+            } else {
+                // For idle animations, loop indefinitely
+                action.setLoop(THREE.LoopRepeat);
+            }
+            
+            action.play();
+            console.log(`✅ Animation started for ${emotionKey}`);
+        }
+
+        // Handle WebSocket messages
+        function handleWebSocketMessage(event) {
+            try {
+                const message = JSON.parse(event.data);
+                console.log("Received message:", message);
+                
+                if (message.type === "emotion_analysis") {
+                    // Update the 3D model with the emotion
+                    const emotion = message.emotion || "neutral";
+                    console.log("🔴 Emotion analysis received: ", emotion);
+                    console.log("🔴 Metadata:", message.metadata);
+                    
+                    playEmotion(emotion);
+                    currentEmotionSpan.textContent = emotion;
+                } else if (message.status === "complete") {
+                    // Handle completed response
+                    if (message.transcription) {
+                        transcriptionDiv.textContent = message.transcription;
+                        transcriptionDiv.style.display = "block";
+                    }
+                    
+                    if (message.response_text) {
+                        responseTextDiv.textContent = message.response_text;
+                        responseBox.style.display = "block";
+                    }
+                    
+                    if (message.audio_url) {
+                        responseAudio.src = message.audio_url;
+                        responseAudio.style.display = "block";
+                        responseAudio.play();
+                    }
+                } else if (message.status === "error") {
+                    console.error("Error from server:", message.error);
+                    statusDiv.textContent = `Error: ${message.error}`;
+                }
+            } catch (error) {
+                console.error("Error parsing WebSocket message:", error);
+            }
+        }
+
+        // Play the requested emotion
+        function playEmotion(emotion) {
+            // Convert the emotion to our model's format if needed
+            const modelEmotion = emotionMap[emotion.toLowerCase()] || 'neutral';
+            
+            console.log("🔵 Playing emotion:", emotion);
+            console.log("🔵 Mapped to model emotion:", modelEmotion);
+            console.log("🔵 Animation file will be:", animationFiles[modelEmotion]);
+            
+            // Add diagnostic logging for loaded models
+            if (loadedModels[modelEmotion]) {
+                console.log("📏 Current model position:", 
+                    loadedModels[modelEmotion].position.x,
+                    loadedModels[modelEmotion].position.y,
+                    loadedModels[modelEmotion].position.z
+                );
+            }
+            
+            // Always play the main emotion first (not the idle version)
+            // The emotion will automatically transition to its idle version after completion
+            if (modelEmotion.toLowerCase().includes('idle')) {
+                // Extract the base emotion name by removing 'idle'
+                const baseEmotion = modelEmotion.toLowerCase().replace('idle', '');
+                
+                // Check if there's a non-idle version of this emotion that we can play first
+                const possibleMainEmotions = Object.keys(emotionMap).filter(key => 
+                    emotionMap[key].toLowerCase() === baseEmotion
+                );
+                
+                if (possibleMainEmotions.length > 0) {
+                    const mainEmotion = emotionMap[possibleMainEmotions[0]];
+                    console.log(`🔄 Starting with main emotion ${mainEmotion} instead of ${modelEmotion}`);
+                    loadModel(mainEmotion);
+                    return;
+                }
+            }
+            
+            // Load and play the animation
+            loadModel(modelEmotion);
+        }
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Update all mixers with the same clock delta
+            const delta = clock.getDelta();
+            
+            // Update all animation mixers
+            for (const emotion in animationMixers) {
+                if (animationMixers[emotion]) {
+                    animationMixers[emotion].update(delta);
+                }
+            }
+            
+            renderer.render(scene, camera);
+        }
+
+        // Set up webcam access
+        async function setupWebcam() {
+            try {
+                // First check if we already have a stream and it's active
+                if (videoStream && videoStream.active) {
+                    console.log("Using existing active video stream");
+                    return;
+                }
+                
+                // Release any previous stream that might exist but is inactive
+                if (videoStream) {
+                    videoStream.getTracks().forEach(track => track.stop());
+                }
+                
+                console.log("Requesting webcam and microphone access...");
+                videoStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: true,
+                    audio: true 
+                });
+                
+                webcamVideo.srcObject = videoStream;
+                
+                // Disable audio track initially to prevent feedback
+                videoStream.getAudioTracks().forEach(track => {
+                    track.enabled = false;
+                });
+                
+                // Enable start button once webcam is ready
+                startBtn.disabled = false;
+                
+                console.log("Webcam and microphone access granted");
+                return true;
+            } catch (error) {
+                console.error("Error accessing webcam and microphone:", error);
+                statusDiv.textContent = `Error: ${error.message}`;
+                alert("Could not access webcam or microphone. Please check your permissions and try again.");
+                return false;
+            }
+        }
+
+        // Set up button event listeners
+        function setupButtonListeners() {
+            // Start session button
+            startBtn.addEventListener('click', () => {
+                connectWebSocket();
+            });
+            
+            // Record button
+            recordBtn.addEventListener('click', () => {
+                startRecording();
+                recordBtn.disabled = true;
+                stopBtn.disabled = false;
+                recordingIndicator.classList.add('active');
+            });
+            
+            // Stop button
+            stopBtn.addEventListener('click', () => {
+                stopRecording();
+                recordBtn.disabled = false;
+                stopBtn.disabled = true;
+                recordingIndicator.classList.remove('active');
+            });
+            
+            // Test emotion buttons
+            document.getElementById('test-happy').addEventListener('click', () => playEmotion('happy'));
+            document.getElementById('test-sad').addEventListener('click', () => playEmotion('sad'));
+            document.getElementById('test-angry').addEventListener('click', () => playEmotion('angry'));
+            document.getElementById('test-afraid').addEventListener('click', () => playEmotion('afraid'));
+            document.getElementById('test-disgust').addEventListener('click', () => playEmotion('disgust'));
+            document.getElementById('test-surprise').addEventListener('click', () => playEmotion('surprise'));
+            document.getElementById('test-neutral').addEventListener('click', () => playEmotion('neutral'));
+        }
+
+        // Connect to WebSocket
+        function connectWebSocket() {
+            // Close existing connection if any
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.close();
+            }
+            
+            // Create a new WebSocket connection
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/api/v1/realtime/ws/${clientId}`;
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                console.log("WebSocket connection established");
+                statusDiv.textContent = "Status: Connected";
+                
+                // Send session start message
+                ws.send(JSON.stringify({
+                    type: "session_start",
+                    session_id: sessionId,
+                    timestamp: Date.now()
+                }));
+                
+                // Check if webcam is available - if not, try to reinitialize
+                if (!videoStream || videoStream.getVideoTracks().length === 0 || !videoStream.getVideoTracks()[0].enabled) {
+                    console.log("Webcam connection not found or inactive, trying to reconnect...");
+                    statusDiv.textContent = "Status: Reconnecting webcam...";
+                    setupWebcam().then(() => {
+                        // Only enable recording button if webcam was successfully initialized
+                        if (videoStream && videoStream.active) {
+                            recordBtn.disabled = false;
+                            startBtn.disabled = true;
+                        }
+                    });
+                } else {
+                    // Enable recording button
+                    recordBtn.disabled = false;
+                    startBtn.disabled = true;
+                }
+            };
+            
+            ws.onmessage = (event) => {
+                handleWebSocketMessage(event);
+            };
+            
+            ws.onerror = (error) => {
+                console.error("WebSocket error:", error);
+                statusDiv.textContent = "Status: Error connecting";
+            };
+            
+            ws.onclose = () => {
+                console.log("WebSocket connection closed");
+                statusDiv.textContent = "Status: Disconnected";
+                recordBtn.disabled = true;
+                startBtn.disabled = false;
+            };
+        }
+
+        // Start recording audio and video
+        function startRecording() {
+            if (!videoStream || !videoStream.active) {
+                console.error("No active media stream available");
+                statusDiv.textContent = "Error: No camera/mic access";
+                
+                // Try to reconnect the webcam
+                setupWebcam().then(success => {
+                    if (success) {
+                        console.log("Webcam reconnected, please try recording again");
+                        statusDiv.textContent = "Status: Webcam reconnected, try again";
+                    }
+                });
+                return;
+            }
+            
+            // Clear previous audio chunks
+            audioChunks = [];
+            
+            try {
+                // Enable audio track for recording
+                videoStream.getAudioTracks().forEach(track => {
+                    track.enabled = true;
+                });
+                
+                // Create media recorder for audio track
+                const audioTrack = videoStream.getAudioTracks()[0];
+                
+                if (!audioTrack) {
+                    console.error("No audio track available");
+                    statusDiv.textContent = "Error: No microphone access";
+                    return;
+                }
+                
+                const audioStream = new MediaStream([audioTrack]);
+                
+                // Set up media recorder with appropriate options
+                const options = { mimeType: 'audio/webm' };
+                mediaRecorder = new MediaRecorder(audioStream, options);
+                
+                // Set up data collection
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data && event.data.size > 0) {
+                        audioChunks.push(event.data);
+                        console.log(`Collected audio chunk: ${event.data.size} bytes (total: ${audioChunks.length} chunks)`);
+                    }
+                };
+                
+                // Start recording - collect data every 100ms
+                mediaRecorder.start(100);
+                
+                // Start sending video frames
+                requestAnimationFrame(captureAndSendFrame);
+                
+                console.log("Recording started with options:", options);
+                statusDiv.textContent = "Status: Recording...";
+            } catch (error) {
+                console.error("Error starting recorder:", error);
+                statusDiv.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        // Capture and send video frame
+        async function captureAndSendFrame() {
+            if (!ws || ws.readyState !== WebSocket.OPEN || !mediaRecorder || mediaRecorder.state !== "recording") {
+                return;
+            }
+            
+            try {
+                // Capture video frame
+                const canvas = document.createElement('canvas');
+                canvas.width = webcamVideo.videoWidth;
+                canvas.height = webcamVideo.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(webcamVideo, 0, 0, canvas.width, canvas.height);
+                
+                // Convert to blob
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.8));
+                
+                // Convert blob to base64
+                const reader = new FileReader();
+                reader.readAsDataURL(blob);
+                reader.onloadend = () => {
+                    // Extract base64 data
+                    const base64data = reader.result.split(',')[1];
+                    
+                    // Send frame
+                    ws.send(JSON.stringify({
+                        type: "video",
+                        data: base64data,
+                        session_id: sessionId,
+                        timestamp: Date.now()
+                    }));
+                    
+                    // Schedule next frame if still recording
+                    if (mediaRecorder && mediaRecorder.state === "recording") {
+                        setTimeout(() => requestAnimationFrame(captureAndSendFrame), 200); // Send at most 5 frames per second
+                    }
+                };
+            } catch (error) {
+                console.error("Error capturing frame:", error);
+            }
+        }
+
+        // Stop recording
+        function stopRecording() {
+            if (!mediaRecorder || mediaRecorder.state === "inactive") {
+                return;
+            }
+            
+            try {
+                // Add an event listener for the stop event which will fire after all data is collected
+                mediaRecorder.addEventListener('stop', function() {
+                    console.log(`Collected ${audioChunks.length} audio chunks`);
+                    
+                    // Send accumulated audio data with is_final flag
+                    sendAudioData(true);
+                });
+                
+                // Stop the media recorder which will trigger the 'stop' event
+                mediaRecorder.stop();
+                
+                // Disable audio track when not recording to prevent feedback
+                videoStream.getAudioTracks().forEach(track => {
+                    track.enabled = false;
+                });
+                
+                statusDiv.textContent = "Status: Processing...";
+                
+                console.log("Recording stopped, waiting for final data");
+            } catch (error) {
+                console.error("Error stopping recorder:", error);
+                statusDiv.textContent = `Error: ${error.message}`;
+            }
+        }
+
+        // Send accumulated audio data
+        async function sendAudioData(isFinal = false) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                console.warn("Cannot send audio: WebSocket not open");
+                return;
+            }
+            
+            if (audioChunks.length === 0) {
+                console.warn("No audio data collected");
+                return;
+            }
+            
+            try {
+                // Create blob from chunks
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                
+                // Calculate duration (approximate)
+                const audioDuration = audioChunks.length * 0.1; // 100ms per chunk
+                
+                // Convert to base64
+                const reader = new FileReader();
+                reader.readAsDataURL(audioBlob);
+                reader.onloadend = () => {
+                    // Extract base64 data
+                    const base64data = reader.result.split(',')[1];
+                    
+                    // Send audio
+                    ws.send(JSON.stringify({
+                        type: "audio",
+                        data: base64data,
+                        session_id: sessionId,
+                        timestamp: Date.now(),
+                        duration: audioDuration,
+                        is_final: isFinal
+                    }));
+                    
+                    console.log(`Sent audio data: ${audioBlob.size} bytes, duration: ${audioDuration}s, final: ${isFinal}`);
+                };
+            } catch (error) {
+                console.error("Error sending audio data:", error);
+                statusDiv.textContent = `Error: ${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html> 

@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Emotion Analysis</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .video-container {
+            position: relative;
+        }
+        #webcam {
+            width: 100%;
+            max-width: 640px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+        }
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #3367d6;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #fff;
+            border-radius: 4px;
+            border-left: 4px solid #4285f4;
+        }
+        .results {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .emotion-container {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .emotion-box {
+            flex: 1;
+            padding: 15px;
+            border-radius: 8px;
+            background-color: #f0f4f8;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+        .emotion-box.active {
+            background-color: #e6f4ff;
+            border-left: 4px solid #4285f4;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .emotion-title {
+            display: flex;
+            align-items: center;
+            margin-top: 0;
+            margin-bottom: 8px;
+            color: #5f6368;
+        }
+        .emotion-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #4285f4;
+        }
+        .emotion-description {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        .response-box {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e8f0fe;
+            border-radius: 8px;
+            border-left: 4px solid #4285f4;
+        }
+        .hidden {
+            display: none;
+        }
+        h2 {
+            color: #4285f4;
+        }
+        h3 {
+            margin-top: 0;
+            color: #5f6368;
+        }
+        #recording-indicator {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 20px;
+            height: 20px;
+            background-color: red;
+            border-radius: 50%;
+            display: none;
+        }
+        #recording-indicator.active {
+            display: block;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        .progress-container {
+            margin-top: 20px;
+            background-color: #f0f0f0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 20px;
+            width: 0%;
+            background-color: #4285f4;
+            text-align: center;
+            line-height: 20px;
+            color: white;
+            transition: width 0.5s;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Real-time Emotion Analysis</h1>
+        
+        <div style="margin-bottom: 20px; text-align: center;">
+            <a href="/3d-emotions" target="_blank" style="display: inline-block; padding: 10px 20px; background-color: #4285f4; color: white; text-decoration: none; border-radius: 4px; font-weight: bold;">
+                Open 3D Emotion Visualizer
+            </a>
+            <p style="margin-top: 5px; font-size: 14px; color: #666;">
+                Opens the 3D model that reacts to your emotions in a new window
+            </p>
+        </div>
+        
+        <div class="video-container">
+            <video id="webcam" autoplay playsinline></video>
+            <div id="recording-indicator"></div>
+        </div>
+        
+        <div class="controls">
+            <button id="start-btn">Start Session</button>
+            <button id="record-btn" disabled>Start Recording</button>
+            <button id="stop-btn" disabled>Stop Recording</button>
+        </div>
+        
+        <div id="status" class="status">
+            Status: Disconnected
+        </div>
+        
+        <div id="progress-container" class="progress-container hidden">
+            <div id="progress-bar" class="progress-bar">0%</div>
+        </div>
+        
+        <div id="results" class="results hidden">
+            <h2>Analysis Results</h2>
+            
+            <div class="emotion-container">
+                <div class="emotion-box" id="semantic-box">
+                    <h3 class="emotion-title">
+                        <span>Semantic Emotion</span>
+                        <span title="Emotion extracted from the words you spoke" style="margin-left: 5px; cursor: help;">ℹ️</span>
+                    </h3>
+                    <div id="semantic-emotion" class="emotion-value">-</div>
+                    <div class="emotion-description">Extracted from the words you spoke</div>
+                </div>
+                <div class="emotion-box" id="tonal-box">
+                    <h3 class="emotion-title">
+                        <span>Tonal Emotion</span>
+                        <span title="Emotion detected from your voice tone" style="margin-left: 5px; cursor: help;">ℹ️</span>
+                    </h3>
+                    <div id="tonal-emotion" class="emotion-value">-</div>
+                    <div class="emotion-description">Detected from your voice tone</div>
+                </div>
+                <div class="emotion-box" id="facial-box">
+                    <h3 class="emotion-title">
+                        <span>Facial Emotion</span>
+                        <span title="Emotion detected from your facial expression" style="margin-left: 5px; cursor: help;">ℹ️</span>
+                    </h3>
+                    <div id="facial-emotion" class="emotion-value">-</div>
+                    <div class="emotion-description">Detected from your facial expression</div>
+                </div>
+            </div>
+            
+            <div>
+                <h3>Transcription</h3>
+                <div id="transcription">-</div>
+            </div>
+            
+            <div class="response-box">
+                <h3>AI Response</h3>
+                <div id="response-text">-</div>
+                <audio id="response-audio" controls class="hidden"></audio>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM elements
+        const webcamVideo = document.getElementById('webcam');
+        const startBtn = document.getElementById('start-btn');
+        const recordBtn = document.getElementById('record-btn');
+        const stopBtn = document.getElementById('stop-btn');
+        const statusDiv = document.getElementById('status');
+        const resultsDiv = document.getElementById('results');
+        const semanticEmotionDiv = document.getElementById('semantic-emotion');
+        const tonalEmotionDiv = document.getElementById('tonal-emotion');
+        const facialEmotionDiv = document.getElementById('facial-emotion');
+        const transcriptionDiv = document.getElementById('transcription');
+        const responseTextDiv = document.getElementById('response-text');
+        const responseAudio = document.getElementById('response-audio');
+        const recordingIndicator = document.getElementById('recording-indicator');
+        const progressContainer = document.getElementById('progress-container');
+        const progressBar = document.getElementById('progress-bar');
+        
+        // WebSocket and media variables
+        let ws;
+        let mediaRecorder;
+        let audioChunks = [];
+        let videoStream;
+        let audioStream;
+        let isRecording = false;
+        let sessionId;
+        let clientId;
+        let videoInterval;
+        let recordingStartTime;
+        
+        // Create a unique client ID
+        clientId = 'client_' + Math.random().toString(36).substring(2, 15);
+        
+        // Start WebSocket connection and request media devices
+        startBtn.addEventListener('click', async () => {
+            try {
+                // Connect to WebSocket
+                await connectWebSocket();
+                
+                // Request webcam and microphone access
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: true, 
+                    audio: true 
+                });
+                
+                // Split the stream for separate handling
+                const videoTracks = stream.getVideoTracks();
+                const audioTracks = stream.getAudioTracks();
+                
+                videoStream = new MediaStream([videoTracks[0]]);
+                audioStream = new MediaStream([audioTracks[0]]);
+                
+                // Display webcam
+                webcamVideo.srcObject = videoStream;
+                
+                // Enable record button
+                startBtn.disabled = true;
+                recordBtn.disabled = false;
+                
+                // Create a new session ID
+                sessionId = 'session_' + Date.now();
+                
+                // Notify server of session start
+                ws.send(JSON.stringify({
+                    type: 'session_start',
+                    session_id: sessionId,
+                    timestamp: Date.now()
+                }));
+                
+                updateStatus('Connected and ready');
+            } catch (error) {
+                console.error('Error starting session:', error);
+                updateStatus('Error: ' + error.message);
+            }
+        });
+        
+        // Start recording
+        recordBtn.addEventListener('click', () => {
+            if (!isRecording && audioStream) {
+                // Verify we have a valid session ID
+                if (!sessionId) {
+                    console.error("Missing session ID! Creating a new one.");
+                    sessionId = 'session_' + Date.now();
+                }
+                console.log("Starting recording with session ID:", sessionId);
+                
+                // Clear any existing processing timeout
+                if (window.processingTimeout) {
+                    clearTimeout(window.processingTimeout);
+                }
+                
+                startRecording();
+                recordBtn.disabled = true;
+                stopBtn.disabled = false;
+                recordingIndicator.classList.add('active');
+                updateStatus('Recording...');
+            }
+        });
+        
+        // Stop recording
+        stopBtn.addEventListener('click', () => {
+            if (isRecording) {
+                console.log("Stop recording button clicked");
+                stopRecording();
+                stopBtn.disabled = true;
+                recordingIndicator.classList.remove('active');
+                updateStatus('Processing...');
+                
+                // Temporarily disable record button to prevent starting a new recording immediately
+                recordBtn.disabled = true;
+                
+                // Set a timeout to handle stuck "Processing..." state
+                window.processingTimeout = setTimeout(() => {
+                    if (statusDiv.textContent.includes('Processing')) {
+                        console.warn("Processing timeout reached, resetting UI");
+                        updateStatus('Processing timeout - ready to record again');
+                        recordBtn.disabled = false;
+                    }
+                }, 30000); // 30 second timeout
+                
+                // Re-enable record button after a delay
+                setTimeout(() => {
+                    if (recordBtn) {
+                        recordBtn.disabled = false;
+                        console.log("Record button re-enabled after delay");
+                    }
+                }, 5000); // Wait 5 seconds before allowing recording again
+            }
+        });
+        
+        // Connect to WebSocket
+        async function connectWebSocket() {
+            // Use current hostname and apply the WebSocket protocol
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/api/v1/realtime/ws/${clientId}`;
+            
+            console.log("Connecting to WebSocket at:", wsUrl);
+            
+            ws = new WebSocket(wsUrl);
+            
+            ws.onopen = () => {
+                console.log("WebSocket connection opened successfully");
+                updateStatus('WebSocket connected');
+            };
+            
+            ws.onclose = () => {
+                console.log("WebSocket connection closed");
+                updateStatus('WebSocket disconnected');
+                clearInterval(videoInterval);
+            };
+            
+            ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+                updateStatus('WebSocket error: ' + error);
+            };
+            
+            ws.onmessage = (event) => {
+                handleWebSocketMessage(event.data);
+            };
+            
+            // Wait for the connection to be established
+            return new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    reject(new Error('WebSocket connection timeout'));
+                }, 5000);
+                
+                ws.addEventListener('open', () => {
+                    clearTimeout(timeout);
+                    resolve();
+                }, { once: true });
+                
+                ws.addEventListener('error', (error) => {
+                    clearTimeout(timeout);
+                    reject(error);
+                }, { once: true });
+            });
+        }
+        
+        // Start audio recording and send video frames
+        function startRecording() {
+            isRecording = true;
+            audioChunks = [];
+            recordingStartTime = Date.now();
+            
+            // Define preferred MIME types for audio recording
+            const preferredMimeTypes = [
+                'audio/wav',
+                'audio/webm',
+                'audio/mp3',
+                'audio/mpeg'
+            ];
+            
+            let selectedMimeType = null;
+            
+            // Find the first supported MIME type
+            for (const mimeType of preferredMimeTypes) {
+                if (MediaRecorder.isTypeSupported(mimeType)) {
+                    selectedMimeType = mimeType;
+                    console.log(`Selected audio format: ${mimeType} (supported by browser)`);
+                    break;
+                } else {
+                    console.log(`Audio format ${mimeType} not supported by browser`);
+                }
+            }
+            
+            // Configure MediaRecorder with options
+            let mediaRecorderOptions = {};
+            if (selectedMimeType) {
+                mediaRecorderOptions.mimeType = selectedMimeType;
+                mediaRecorderOptions.audioBitsPerSecond = 128000;
+            } else {
+                console.warn("No specific format from our list is supported, using browser default");
+            }
+            
+            try {
+                // Create MediaRecorder with selected options
+                mediaRecorder = new MediaRecorder(audioStream, mediaRecorderOptions);
+                console.log(`MediaRecorder created with format: ${mediaRecorder.mimeType}`);
+            } catch (e) {
+                console.error("Error creating MediaRecorder:", e);
+                console.log("Falling back to default MediaRecorder settings");
+                mediaRecorder = new MediaRecorder(audioStream);
+            }
+            
+            // Collect audio data when available
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    console.log(`Audio chunk received: ${(event.data.size / 1024).toFixed(2)}KB`);
+                    audioChunks.push(event.data);
+                } else {
+                    console.warn("Empty audio chunk received");
+                }
+            };
+            
+            // Start recording in 1000ms chunks
+            mediaRecorder.start(1000);
+            console.log("MediaRecorder started");
+            
+            // Setup interval to send video frames
+            videoInterval = setInterval(() => {
+                if (isRecording) {
+                    captureAndSendVideoFrame();
+                }
+            }, 1000); // Send a frame every 1000ms (1 second)
+        }
+        
+        // Stop recording
+        function stopRecording() {
+            console.log("Stopping recording...");
+            
+            // Set flag first to prevent further processing
+            isRecording = false;
+            clearInterval(videoInterval);
+            
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                console.log("Stopping MediaRecorder");
+                
+                // Add event listener for when recording actually stops
+                mediaRecorder.onstop = () => {
+                    console.log("MediaRecorder stopped, processing audio data");
+                    // Process collected audio chunks after recorder has fully stopped
+                    sendCombinedAudioData();
+                };
+                
+                // Stop the recorder
+                mediaRecorder.stop();
+                
+                // Send the last video frame
+                captureAndSendVideoFrame();
+            } else {
+                console.warn("MediaRecorder already inactive or not initialized");
+                if (audioChunks.length > 0) {
+                    console.log("Processing existing audio chunks");
+                    sendCombinedAudioData();
+                } else {
+                    console.error("No audio chunks collected");
+                    updateStatus("Error: No audio recorded");
+                    recordBtn.disabled = false;
+                }
+            }
+        }
+        
+        // Send combined audio data after recording stops
+        function sendCombinedAudioData() {
+            if (audioChunks.length === 0) {
+                console.error("No audio chunks collected");
+                updateStatus("Error: No audio recorded");
+                recordBtn.disabled = false;
+                return;
+            }
+            
+            // Combine all audio chunks into a single blob
+            const audioDuration = (Date.now() - recordingStartTime) / 1000;
+            console.log(`Recording duration: ${audioDuration.toFixed(2)} seconds, chunks: ${audioChunks.length}`);
+            
+            // Get the proper MIME type from the MediaRecorder
+            const mimeType = mediaRecorder.mimeType || 'audio/webm';
+            console.log(`Using MIME type for audio blob: ${mimeType}`);
+            
+            const audioBlob = new Blob(audioChunks, { type: mimeType });
+            console.log(`Combined audio size: ${(audioBlob.size / 1024).toFixed(2)}KB`);
+            
+            // Convert the blob to base64
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                const base64data = reader.result.split(',')[1];
+                
+                // Send the combined audio
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    console.log(`Sending audio data (${(base64data.length / 1024).toFixed(2)}KB) with session ID: ${sessionId}`);
+                    console.log(`Audio content type: ${mimeType}`);
+                    updateStatus("Sending audio for processing...", 30);
+                    
+                    ws.send(JSON.stringify({
+                        type: "audio",
+                        data: base64data,
+                        duration: audioDuration,
+                        content_type: mimeType,
+                        session_id: sessionId,
+                        is_final: true // Flag to indicate this is the final audio chunk
+                    }));
+                } else {
+                    console.error("WebSocket connection closed. Cannot send audio data.");
+                    updateStatus("Error: Connection lost");
+                    recordBtn.disabled = false;
+                    
+                    // Try to reconnect
+                    tryReconnect();
+                }
+            };
+            reader.readAsDataURL(audioBlob);
+        }
+        
+        // Try to reconnect websocket
+        function tryReconnect() {
+            console.log("Attempting to reconnect WebSocket...");
+            window.intentionalDisconnect = false;
+            connectWebSocket().then(() => {
+                console.log("WebSocket reconnected successfully");
+                updateStatus("Reconnected");
+                
+                // Re-send session start 
+                if (sessionId) {
+                    ws.send(JSON.stringify({
+                        type: 'session_start',
+                        session_id: sessionId,
+                        timestamp: Date.now()
+                    }));
+                }
+            }).catch(error => {
+                console.error("Failed to reconnect:", error);
+                updateStatus("Failed to reconnect. Please refresh the page.");
+            });
+        }
+        
+        // Capture and send video frame
+        function captureAndSendVideoFrame() {
+            // Verify we have a valid session ID
+            if (!sessionId) {
+                console.error("Missing session ID for video frame! Creating a new one.");
+                sessionId = 'session_' + Date.now();
+            }
+            
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Match canvas size to video
+            canvas.width = webcamVideo.videoWidth;
+            canvas.height = webcamVideo.videoHeight;
+            
+            // Draw current video frame to canvas
+            ctx.drawImage(webcamVideo, 0, 0, canvas.width, canvas.height);
+            
+            // Convert canvas to blob
+            canvas.toBlob((blob) => {
+                const reader = new FileReader();
+                reader.readAsArrayBuffer(blob);
+                reader.onloadend = () => {
+                    // Skip if recording was stopped
+                    if (!isRecording) return;
+                    
+                    const base64data = btoa(String.fromCharCode(...new Uint8Array(reader.result)));
+                    console.log("Sending video frame with session ID:", sessionId);
+                    
+                    // Only send if WebSocket is open
+                    if (ws && ws.readyState === WebSocket.OPEN) {
+                        ws.send(JSON.stringify({
+                            type: 'video',
+                            data: base64data,
+                            session_id: sessionId,
+                            timestamp: Date.now()
+                        }));
+                    } else {
+                        console.error("WebSocket not open, cannot send video frame");
+                    }
+                };
+            }, 'image/jpeg', 0.8);
+        }
+        
+        // Handle WebSocket messages
+        function handleWebSocketMessage(data) {
+            try {
+                const message = JSON.parse(data);
+                console.log("Received WebSocket message:", message);
+                
+                // Clear processing timeout if we got any response
+                if (window.processingTimeout) {
+                    clearTimeout(window.processingTimeout);
+                }
+                
+                if (message.status === 'error') {
+                    updateStatus('Error: ' + (message.error || 'Unknown error'));
+                    console.error('Error details:', message.detail || 'No details provided');
+                    
+                    // Re-enable record button on error
+                    recordBtn.disabled = false;
+                    stopBtn.disabled = true;
+                    isRecording = false;
+                    return;
+                }
+                
+                if (message.status === 'warning') {
+                    updateStatus('Warning: ' + message.message);
+                    return;
+                }
+                
+                if (message.status === 'buffering') {
+                    updateStatus('Buffering audio...', 20);
+                    return;
+                }
+                
+                if (message.status === 'processing') {
+                    updateStatus(message.message || 'Processing data...', 50);
+                    return;
+                }
+                
+                if (message.status === 'complete') {
+                    updateStatus('Analysis complete', 100);
+                    
+                    // Update the UI with results and highlight the active emotions
+                    const semanticEmotion = message.semantic_emotion || 'Unknown';
+                    const tonalEmotion = message.tonal_emotion || 'Unknown';
+                    const facialEmotion = message.facial_emotion || 'Unknown';
+                    
+                    semanticEmotionDiv.textContent = semanticEmotion;
+                    tonalEmotionDiv.textContent = tonalEmotion;
+                    facialEmotionDiv.textContent = facialEmotion;
+                    
+                    // Highlight the emotion boxes based on whether they're neutral or not
+                    document.getElementById('semantic-box').classList.toggle('active', semanticEmotion !== 'neutral' && semanticEmotion !== 'Unknown');
+                    document.getElementById('tonal-box').classList.toggle('active', tonalEmotion !== 'neutral' && tonalEmotion !== 'Unknown');
+                    document.getElementById('facial-box').classList.toggle('active', facialEmotion !== 'neutral' && facialEmotion !== 'Unknown');
+                    
+                    // Log all detected emotions to console for debugging
+                    console.log(`Emotions detected - Semantic: ${semanticEmotion}, Tonal: ${tonalEmotion}, Facial: ${facialEmotion}`);
+                    
+                    transcriptionDiv.textContent = message.transcription || 'No transcription';
+                    
+                    // Display response text
+                    responseTextDiv.textContent = message.response_text || 'No response';
+                    
+                    // Display audio if available
+                    if (message.audio_url) {
+                        responseAudio.src = message.audio_url;
+                        responseAudio.classList.remove('hidden');
+                        responseAudio.play();
+                    }
+                    
+                    // Show results
+                    resultsDiv.classList.remove('hidden');
+                    
+                    // Re-enable record button
+                    recordBtn.disabled = false;
+                    
+                    // REMOVE AUTO-RECORDING - User must manually start recording
+                    // Previously there was auto-restart logic here
+                    updateStatus(`Analysis complete. Click 'Start Recording' when ready.`, 100);
+                    
+                    // Add debug info if available
+                    if (message.debug) {
+                        console.log('Debug info:', message.debug);
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Error handling WebSocket message:', error, 'Raw data:', data);
+                updateStatus('Error processing response');
+            }
+        }
+        
+        // Update status display with progress
+        function updateStatus(message, progress = null) {
+            statusDiv.textContent = 'Status: ' + message;
+            console.log("Status updated:", message);
+            
+            // Update progress bar if provided
+            if (progress !== null) {
+                progressContainer.classList.remove('hidden');
+                progressBar.style.width = progress + '%';
+                progressBar.textContent = progress + '%';
+            } else {
+                progressContainer.classList.add('hidden');
+            }
+        }
+        
+        // Reconnect WebSocket if it closes unexpectedly
+        function setupWebSocketReconnect() {
+            setInterval(() => {
+                if (ws && ws.readyState === WebSocket.CLOSED && !window.intentionalDisconnect) {
+                    console.log("WebSocket closed unexpectedly, attempting to reconnect...");
+                    connectWebSocket().then(() => {
+                        console.log("WebSocket reconnected");
+                        updateStatus("WebSocket reconnected");
+                        
+                        // Re-notify server of session if we have one
+                        if (sessionId) {
+                            ws.send(JSON.stringify({
+                                type: 'session_start',
+                                session_id: sessionId,
+                                timestamp: Date.now()
+                            }));
+                        }
+                    }).catch(error => {
+                        console.error("Failed to reconnect WebSocket:", error);
+                        updateStatus("Failed to reconnect");
+                    });
+                }
+            }, 5000); // Check every 5 seconds
+        }
+        
+        // Setup reconnect on page load
+        setupWebSocketReconnect();
+        
+        // If WebSocket is active, close it
+        function closeConnection() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                window.intentionalDisconnect = true;
+                ws.send(JSON.stringify({
+                    type: 'session_end',
+                    session_id: sessionId,
+                    timestamp: Date.now()
+                }));
+                ws.close();
+            }
+        }
+
+        // Clean up on page unload
+        window.addEventListener('beforeunload', () => {
+            closeConnection();
+            stopRecording();
+        });
+
+        // Prevent automatic recording that might be triggered by other events
+        window.autoRecordTimeout = null;
+        window.processingTimeout = null;
+    </script>
+</body>
+</html> 

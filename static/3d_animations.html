@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Emotion 3D Animations</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #000;
+            color: #fff;
+            font-family: Arial, sans-serif;
+        }
+        #canvas-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 10;
+        }
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 10;
+        }
+        button {
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover {
+            background-color: #3367d6;
+        }
+        .status {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    
+    <div id="info">
+        <h2>Emotion Animation Viewer</h2>
+        <p>Current Emotion: <span id="current-emotion">Neutral (Idle)</span></p>
+    </div>
+    
+    <div id="status" class="status">Status: Disconnected</div>
+    
+    <div id="controls">
+        <button id="connect-btn">Connect to Emotion Stream</button>
+        <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 10px;">
+            <div style="display: flex; gap: 10px;">
+                <button id="neutral-btn">Neutral</button>
+                <button id="happy-btn">Happy</button>
+                <button id="sad-btn">Sad</button>
+                <button id="angry-btn">Angry</button>
+                <button id="afraid-btn">Afraid</button>
+                <button id="disgust-btn">Disgust</button>
+                <button id="surprise-btn">Surprise</button>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button id="neutralIdle-btn">Neutral Idle</button>
+                <button id="happyIdle-btn">Happy Idle</button>
+                <button id="sadIdle-btn">Sad Idle</button>
+                <button id="angryIdle-btn">Angry Idle</button>
+                <button id="afraidIdle-btn">Afraid Idle</button>
+                <button id="disgustIdle-btn">Disgust Idle</button>
+                <button id="surpriseIdle-btn">Surprise Idle</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Three.js from CDN using ES modules -->
+    <script async src="https://unpkg.com/es-module-shims@1.6.3/dist/es-module-shims.js"></script>
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+        }
+    }
+    </script>
+    
+    <script type="module">
+        import * as THREE from 'three';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        
+        // DOM elements
+        const connectBtn = document.getElementById('connect-btn');
+        const statusDiv = document.getElementById('status');
+        const currentEmotionSpan = document.getElementById('current-emotion');
+        
+        // Animation state
+        const emotionButtons = {
+            'neutral': document.getElementById('neutral-btn'),
+            'happy': document.getElementById('happy-btn'),
+            'sad': document.getElementById('sad-btn'),
+            'angry': document.getElementById('angry-btn'),
+            'afraid': document.getElementById('afraid-btn'),
+            'disgust': document.getElementById('disgust-btn'),
+            'surprise': document.getElementById('surprise-btn'),
+            'neutralIdle': document.getElementById('neutralIdle-btn'),
+            'happyIdle': document.getElementById('happyIdle-btn'),
+            'sadIdle': document.getElementById('sadIdle-btn'),
+            'angryIdle': document.getElementById('angryIdle-btn'),
+            'afraidIdle': document.getElementById('afraidIdle-btn'),
+            'disgustIdle': document.getElementById('disgustIdle-btn'),
+            'surpriseIdle': document.getElementById('surpriseIdle-btn')
+        };
+        
+        // Three.js variables
+        let scene, camera, renderer, clock;
+        let currentModel = null;
+        let currentAnimation = null;
+        let loadedModels = {}; // Store loaded models by emotion key
+        let animationMixers = {}; // Store mixers by emotion key
+        let animationsLoaded = {};
+        let modelAnimations = {};
+        let transitionDuration = 0.5; // Shorter transition duration (seconds)
+        let lastEmotionChange = 0; // Timestamp of the last emotion change
+        let emotionDebounceTime = 3000; // Minimum time between emotion changes (milliseconds)
+        let isTransitioning = false; // Flag to track if we're in the middle of a transition
+        
+        // WebSocket variables
+        let ws;
+        let clientId = 'emotions_client_' + Math.random().toString(36).substring(2, 15);
+        let sessionId = 'session_' + Date.now();
+        
+        // Animation file paths
+        const animationFiles = {
+            'neutral': '/animations/NeutralIdle.glb',
+            'happy': '/animations/Happy.glb',
+            'sad': '/animations/Sad.glb',
+            'angry': '/animations/Angry.glb',
+            'afraid': '/animations/Afraid.glb',
+            'disgust': '/animations/Disgust.glb',
+            'surprise': '/animations/Suprise.glb',  // Note the spelling in file name
+            'happyIdle': '/animations/HappyIdle.glb',
+            'sadIdle': '/animations/SadIdle.glb',
+            'angryIdle': '/animations/AngryIdle.glb',
+            'afraidIdle': '/animations/AfraidIdle.glb',
+            'disgustIdle': '/animations/DisgustIdle.glb',
+            'surpriseIdle': '/animations/SupriseIdle.glb',  // Note the spelling in file name
+            'neutralIdle': '/animations/NeutralIdle.glb'  // Fixed: This was missing a correct path
+        };
+
+        // Initialize Three.js scene
+        function init() {
+            // Create scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000000);  // Pure black background
+            
+            // Create camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 0.7, 1.5); // Better viewing position
+            
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.outputColorSpace = THREE.SRGBColorSpace;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+            
+            // Add orbit controls
+            const controls = new OrbitControls(camera, renderer.domElement);
+            controls.target.set(0, 1, 0);
+            controls.update();
+            
+            // Add lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.7); // Slightly brighter ambient light
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 1.2); // Slightly brighter directional light
+            directionalLight.position.set(1, 2, 3); // Position from front-right-top for better highlights
+            scene.add(directionalLight);
+            
+            // Add a fill light from the opposite side to soften shadows
+            const fillLight = new THREE.DirectionalLight(0xffffff, 0.5);
+            fillLight.position.set(-1, 1, -2);
+            scene.add(fillLight);
+            
+            // Initialize animation clock
+            clock = new THREE.Clock();
+            
+            // Start loading the default model (Happy instead of Neutral Idle)
+            loadModel('happy');
+            
+            // Handle window resize
+            window.addEventListener('resize', onWindowResize);
+        }
+
+        // Handle window resize
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Load a 3D model with its animation
+        function loadModel(emotionKey) {
+            // If already loaded, just play it
+            if (animationsLoaded[emotionKey]) {
+                switchToModel(emotionKey);
+                return;
+            }
+            
+            // Show loading in the UI
+            currentEmotionSpan.textContent = `Loading ${emotionKey}...`;
+            
+            // Get the file path
+            const filePath = animationFiles[emotionKey];
+            if (!filePath) {
+                console.error(`No file path found for emotion: ${emotionKey}`);
+                currentEmotionSpan.textContent = `Error: No file for ${emotionKey}`;
+                return;
+            }
+            
+            console.log(`Attempting to load model: ${emotionKey} from path: ${filePath}`);
+            
+            // Create a GLTF loader
+            const loader = new GLTFLoader();
+            
+            // Add a console log to debug the loading process
+            console.log(`GLTFLoader created, loading from: ${filePath}`);
+            
+            // Load the model file
+            loader.load(
+                filePath,
+                function(gltf) {
+                    console.log(`Successfully loaded ${emotionKey} model`, gltf);
+                    
+                    // Store the model and its animations
+                    const model = gltf.scene;
+                    const animations = gltf.animations;
+                    
+                    console.log(`Model has ${animations.length} animations`);
+                    
+                    // Position and scale the model consistently
+                    model.position.set(0, 0, 0);
+                    model.scale.set(1.2, 1.2, 1.2);
+                    model.rotation.y = Math.PI; // Rotate to face the camera
+                    
+                    // Initially hide the model - we'll show it when needed
+                    model.visible = false;
+                    
+                    // Store the model
+                    loadedModels[emotionKey] = model;
+                    
+                    // Add model to the scene
+                    scene.add(model);
+                    console.log(`Added ${emotionKey} model to scene (initially hidden)`);
+                    
+                    // Create a dedicated mixer for this model
+                    animationMixers[emotionKey] = new THREE.AnimationMixer(model);
+                    console.log(`Created animation mixer for ${emotionKey}`);
+                    
+                    // Store animations
+                    modelAnimations[emotionKey] = animations;
+                    animationsLoaded[emotionKey] = true;
+                    
+                    // Switch to this model
+                    switchToModel(emotionKey);
+                },
+                function(xhr) {
+                    // Loading progress
+                    const percent = Math.floor((xhr.loaded / xhr.total) * 100);
+                    currentEmotionSpan.textContent = `Loading ${emotionKey}... ${percent}%`;
+                },
+                function(error) {
+                    // Error handling
+                    console.error(`Error loading model ${emotionKey}:`, error);
+                    currentEmotionSpan.textContent = `Error loading ${emotionKey}`;
+                }
+            );
+        }
+
+        // Switch to a different model
+        function switchToModel(emotionKey) {
+            if (!loadedModels[emotionKey]) {
+                console.error(`Model ${emotionKey} not loaded yet`);
+                loadModel(emotionKey);
+                return;
+            }
+            
+            // Hide the current model if there is one
+            if (currentModel) {
+                currentModel.visible = false;
+                console.log(`Hidden previous model`);
+            }
+            
+            // Show the new model
+            const newModel = loadedModels[emotionKey];
+            newModel.visible = true;
+            currentModel = newModel;
+            
+            console.log(`Switched to model: ${emotionKey}`);
+            
+            // Play the animation on this model
+            playAnimation(emotionKey);
+        }
+
+        // Play an animation after it's loaded
+        function playAnimation(emotionKey) {
+            // Check if already transitioning
+            if (isTransitioning) {
+                console.log(`Already transitioning, ignoring request to play ${emotionKey}`);
+                return;
+            }
+            
+            // Check if animation is loaded
+            if (!animationsLoaded[emotionKey] || !modelAnimations[emotionKey] || modelAnimations[emotionKey].length === 0) {
+                console.warn(`Animation data for ${emotionKey} not ready or empty. Attempting to load.`);
+                loadModel(emotionKey);
+                return;
+            }
+
+            // Get the clip to play
+            const clips = modelAnimations[emotionKey];
+            const clip = clips[0]; // Assuming the first animation is the one we want
+
+            if (!clip) {
+                console.error(`No animation clip found for ${emotionKey}`);
+                return;
+            }
+
+            // Ensure the mixer exists
+            if (!animationMixers[emotionKey]) {
+                console.error(`Animation mixer for ${emotionKey} is not initialized.`);
+                return;
+            }
+
+            const mixer = animationMixers[emotionKey];
+            const newAction = mixer.clipAction(clip);
+
+            if (!newAction) {
+                console.error(`Could not create animation action for ${emotionKey}`);
+                return;
+            }
+
+            // Reset and configure the new action
+            newAction.reset();
+            newAction.setLoop(THREE.LoopRepeat);
+            newAction.clampWhenFinished = true;
+            newAction.enabled = true;
+            
+            // Stop any previous action on this mixer
+            mixer.stopAllAction();
+            
+            // Play the new action
+            newAction.play();
+            console.log(`Playing animation for ${emotionKey}`);
+            
+            // Update UI
+            currentEmotionSpan.textContent = formatEmotionName(emotionKey);
+        }
+        
+        // Format emotion name for display
+        function formatEmotionName(key) {
+            let formattedName = key.replace(/([A-Z])/g, ' $1').trim();
+            return formattedName.charAt(0).toUpperCase() + formattedName.slice(1);
+        }
+
+        // Play transition animation, then go to idle
+        function playEmotionWithIdleTransition(emotionKey) {
+            // Simply switch to the requested model and animation
+            switchToModel(emotionKey);
+        }
+        
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Get the delta time
+            const delta = clock.getDelta();
+            
+            // Update animation mixers
+            for (const [key, mixer] of Object.entries(animationMixers)) {
+                mixer.update(delta);
+            }
+            
+            // Render scene
+            renderer.render(scene, camera);
+        }
+        
+        // Connect to WebSocket
+        function connectWebSocket() {
+            try {
+                updateStatus('Connecting...');
+                
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const host = window.location.host;
+                
+                // Try different WebSocket URLs
+                const wsUrls = [
+                    `${protocol}//${host}/api/v1/realtime/ws/${clientId}`,
+                    `${protocol}//${host}/realtime/ws/${clientId}`,
+                    `${protocol}//${host}/ws/${clientId}`
+                ];
+                
+                let connected = false;
+                let urlIndex = 0;
+                
+                function tryConnect() {
+                    if (urlIndex >= wsUrls.length) {
+                        updateStatus('Failed to connect');
+                        connectBtn.textContent = 'Reconnect';
+                        connectBtn.disabled = false;
+                        return;
+                    }
+                    
+                    const wsUrl = wsUrls[urlIndex++];
+                    console.log(`Trying WebSocket URL: ${wsUrl}`);
+                    
+                    ws = new WebSocket(wsUrl);
+                    
+                    ws.onopen = () => {
+                        connected = true;
+                        updateStatus('Connected');
+                        connectBtn.textContent = 'Disconnect';
+                        connectBtn.disabled = false;
+                        
+                        // Send session start message
+                        ws.send(JSON.stringify({
+                            type: 'session_start',
+                            session_id: sessionId,
+                            timestamp: Date.now()
+                        }));
+                    };
+                    
+                    ws.onmessage = (event) => {
+                        try {
+                            const data = JSON.parse(event.data);
+                            console.log('Received:', data);
+                            
+                            // Handle emotion updates
+                            if (data.type === 'emotion_analysis') {
+                                const emotion = data.emotion?.toLowerCase();
+                                console.log(`Received emotion: ${emotion}`);
+                                
+                                // Map received emotions to our animation keys
+                                let animationKey = emotion;
+                                
+                                // Handle special mappings if necessary
+                                if (emotion === 'fear') animationKey = 'afraid';
+                                if (emotion === 'surprised') animationKey = 'surprise';
+                                
+                                // Debounce rapid emotion changes
+                                const now = Date.now();
+                                if (now - lastEmotionChange < emotionDebounceTime) {
+                                    console.log(`Ignoring emotion change to ${animationKey} - too soon since last change`);
+                                    return;
+                                }
+                                
+                                if (animationFiles[animationKey]) {
+                                    console.log(`Playing animation for: ${animationKey}`);
+                                    playEmotionWithIdleTransition(animationKey);
+                                    lastEmotionChange = now;
+                                } else {
+                                    console.warn(`No animation found for emotion: ${emotion}`);
+                                }
+                            }
+                        } catch (e) {
+                            console.error('Error parsing message:', e);
+                        }
+                    };
+                    
+                    ws.onerror = () => {
+                        console.log(`WebSocket error on ${wsUrl}`);
+                        ws.close();
+                    };
+                    
+                    ws.onclose = () => {
+                        if (connected) {
+                            updateStatus('Disconnected');
+                            connectBtn.textContent = 'Connect';
+                            connectBtn.disabled = false;
+                        } else {
+                            tryConnect(); // Try the next URL
+                        }
+                    };
+                }
+                
+                connectBtn.disabled = true;
+                tryConnect();
+                
+            } catch (error) {
+                console.error('Connection error:', error);
+                updateStatus('Error: ' + error.message);
+                connectBtn.textContent = 'Connect';
+                connectBtn.disabled = false;
+            }
+        }
+        
+        // Disconnect WebSocket
+        function disconnectWebSocket() {
+            if (ws) {
+                if (ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'session_end',
+                        session_id: sessionId,
+                        timestamp: Date.now()
+                    }));
+                }
+                
+                ws.close();
+                updateStatus('Disconnected');
+                connectBtn.textContent = 'Connect';
+            }
+        }
+        
+        // Update status display
+        function updateStatus(message) {
+            statusDiv.textContent = 'Status: ' + message;
+        }
+        
+        // Set up event listeners
+        connectBtn.addEventListener('click', function() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                disconnectWebSocket();
+            } else {
+                connectWebSocket();
+            }
+        });
+        
+        // Set up emotion button listeners
+        Object.keys(emotionButtons).forEach(emotion => {
+            console.log(`Setting up listener for emotion: ${emotion}`);
+            emotionButtons[emotion].addEventListener('click', () => {
+                console.log(`Clicked ${emotion} button`);
+                playEmotionWithIdleTransition(emotion);
+            });
+        });
+        
+        // Initialize the scene and start the animation loop
+        init();
+        animate();
+        
+        // Test if all animation files are accessible
+        async function testAnimationFilesAccess() {
+            console.log("Testing access to animation files...");
+            for (const [key, path] of Object.entries(animationFiles)) {
+                try {
+                    const response = await fetch(path, { method: 'HEAD' });
+                    if (response.ok) {
+                        console.log(`✅ ${key}: ${path} is accessible`);
+                    } else {
+                        console.error(`❌ ${key}: ${path} returns ${response.status}`);
+                    }
+                } catch (error) {
+                    console.error(`❌ ${key}: Error accessing ${path}:`, error);
+                }
+            }
+        }
+        
+        // Run the test
+        testAnimationFilesAccess();
+    </script>
+</body>
+</html> 
