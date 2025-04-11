@@ -74,12 +74,17 @@ class MultiModalClassifier():
                 label = next(iter(subset))
             else:
                 label = "{" + ", ".join(sorted(subset)) + "}"
-            print(f"{label}: {mass:.3f}")
+
+            scale = 30
+            bar_length = int(mass * scale)
+            bar = '=' * bar_length
+            print(f"{label: <10}: {mass:.3f} | {bar}")
 
     def __incongruent(self, tone, face, semantics):
-        tone_tense = self.__EMOTION_LIB.get(tone, self.__NEUTRAL_EMOTION)
-        face_tense = self.__EMOTION_LIB.get(face, self.__NEUTRAL_EMOTION)
-        semantics_tense = self.__EMOTION_LIB.get(semantics, self.__NEUTRAL_EMOTION)
+        tone_tense = self.__EMOTION_LIB.get(tone.emotion, self.__NEUTRAL_EMOTION)
+        face_tense = self.__EMOTION_LIB.get(face.emotion, self.__NEUTRAL_EMOTION)
+        semantics_tense = self.__EMOTION_LIB.get(semantics.emotion, self.__NEUTRAL_EMOTION)
+        # print(f"Tone {tone_tense} Face {face_tense} Semantics {semantics_tense}")
 
         if tone_tense + face_tense > 0 and semantics_tense == self.__NEGATIVE_EMOTION:
             return True
