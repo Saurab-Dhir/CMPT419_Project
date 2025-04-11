@@ -74,18 +74,21 @@ class MultiModalService:
             if transcription == "(No speech detected)":
                 print("⚠️ Empty transcription detected, proceeding with minimal input")
             
+            TONE_CLASSIFIER_RELIABILITY = 0.68
+            FACE_CLASSIFIER_RELIABILITY = 0.87
+            SEMANTIC_CLASSIFIER_RELIABILITY = 0.85
             tone = Evidence(
                 emotion=tonal_emotion, 
                 confidence=audio_result.emotion_prediction.confidence, 
-                reliability=0.8)
+                reliability=TONE_CLASSIFIER_RELIABILITY)
             face = Evidence(
                 emotion=facial_emotion, 
                 confidence=visual_result.emotion_prediction.confidence, 
-                reliability=0.9)
+                reliability=FACE_CLASSIFIER_RELIABILITY)
             semantics = Evidence(
                 emotion=semantic_emotion, 
                 confidence=0.8, 
-                reliability=0.9)
+                reliability=SEMANTIC_CLASSIFIER_RELIABILITY)
             
             multimodal_model = MultiModalClassifier()
             combined_prediction = multimodal_model.predict(tone, face, semantics)
