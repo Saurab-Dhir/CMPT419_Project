@@ -59,6 +59,72 @@ A comprehensive multimodal emotion analysis system that processes webcam video a
      - Generated text response
      - Audio URL for playback
 
+## Code and Dataset Structure
+
+### Code Structure
+```
+app/
+├── models/             # Data models for the application
+│   ├── audio.py        # Audio processing models
+│   ├── response.py     # Response models including MultiModalEmotionInput
+│   └── visual.py       # Visual processing models
+├── routers/            # API route definitions
+│   ├── realtime.py     # WebSocket handler for real-time processing
+├── services/           # Core service implementations
+│   ├── audio_service.py       # Audio processing service
+│   ├── deepface_service.py    # Facial analysis service
+│   ├── elevenlabs_service.py  # Text-to-speech service
+│   ├── llm_service.py         # LLM service using Gemini API
+│   ├── multimodal_service.py  # Combined multimodal processing
+│   ├── stt_service.py         # Speech-to-text service
+│   ├── tone_service.py        # Tone analysis service
+│   └── visual_service.py      # Visual processing service
+├── utils/              # Utility functions
+├── main.py             # FastAPI application setup
+static/
+├── webcam.html         # Frontend interface for webcam interaction
+├── 3d-conversation.html # 3D animated conversation interface
+├── styles.css          # Styling for the interface
+└── js/                 # JavaScript for the frontend
+animations/             # 3D emotion animation models
+tone_classification/     # Tone classification model
+├── tone_classification_model.py  # PyTorch model definition
+├── data_loader.py      # Data processing utilities
+└── saved_models/       # Saved model weights
+```
+
+### Dataset Structure
+Our tone classification dataset is composed of:
+- Custom recorded audio samples (25+ samples per team member) with various emotional tones
+- CREMA-D dataset samples (supplementary data)
+- Audio files stored in `tone_classification/data/` directory
+- Each recording labeled with one of 7 emotions: happy, sad, angry, fear, disgust, surprise, neutral
+
+## Self-Evaluation vs. Proposal
+
+### What We Accomplished
+- Successfully implemented a multimodal emotion recognition system that integrates facial expressions, speech tone, and semantic content
+- Developed the facial emotion recognition using DeepFace with geometric feature analysis for improved accuracy
+- Created a custom tone classification model using PyTorch and Wav2Vec2 embeddings
+- Integrated Google Gemini API for speech-to-text and semantic analysis
+- Implemented ElevenLabs for high-quality text-to-speech with emotional tones
+- Built a real-time 3D virtual mirror with animated emotional responses
+- Achieved WebSocket-based bidirectional communication for seamless interaction
+
+### Changes from Proposal
+- Extended beyond just positive messaging to include a range of emotional responses based on detected user emotions
+- Added 3D animation component not mentioned in original proposal for better visual feedback
+- Implemented a  MLP based tone classification model,, networks instead of planned SVM/XGBoost
+- Expanded the facial emotion detection to include detailed metrics (eye openness, mouth openness, eyebrow raise)
+- Used Wav2Vec2 feature extraction rather than raw MFCC features for improved tone classification
+
+### Technical Challenges
+- Faced challenges with DeepFace's tendency to classify most expressions as "neutral"
+- Overcame WebSocket communication issues for real-time processing
+- Trying to synchronize all REST API Requests and Process them at the same time from all inputs
+- Improving model performance in varying lighting conditions
+- Enhancing audio processing to handle different microphone inputs and environmental noise
+
 ## Requirements
 
 - Python 3.7+
@@ -101,14 +167,29 @@ LLM_API_KEY=your_gemini_api_key
 pip install deepface
 ```
 
+6. Our custom dataset can be accessed in 
+```
+   /tone_classification/data/Custom
+```
+7. CREMA-D Dataset obtained from: https://www.kaggle.com/datasets/ejlok1/cremad
+
+8. RAVDESS Emotional speech audio dataset obtained from: https://www.kaggle.com/datasets/uwrfkaggler/ravdess-emotional-speech-audio
 ## Setting Up the Project
 
-## Install Dependencies
+### Install Dependencies
 ```bash
 pip install -r requirements.txt
 ```
 
-## Model Setup
+### Special Dependencies
+- **FFmpeg**: Required for audio conversion (WebM to WAV)
+  - Windows: Download from https://ffmpeg.org/download.html and add to PATH
+  - Linux: `sudo apt-get install ffmpeg`
+  - Mac: `brew install ffmpeg`
+- **CUDA Toolkit** (Optional): For GPU acceleration of PyTorch models
+  - Install appropriate version from https://developer.nvidia.com/cuda-downloads
+
+### Model Setup
 For face detection and emotion analysis to work properly, you need to set up the required model files:
 
 ```bash
@@ -139,39 +220,14 @@ http://localhost:8000/3d-conversation
    - View the analysis results and AI response
    - Listen to the synthesized speech response
 
-## Project Structure
-
-```
-app/
-├── models/             # Data models for the application
-│   ├── audio.py        # Audio processing models
-│   ├── response.py     # Response models including MultiModalEmotionInput
-│   └── visual.py       # Visual processing models
-├── routers/            # API route definitions
-│   ├── realtime.py     # WebSocket handler for real-time processing
-├── services/           # Core service implementations
-│   ├── audio_service.py       # Audio processing service
-│   ├── deepface_service.py    # Facial analysis service
-│   ├── elevenlabs_service.py  # Text-to-speech service
-│   ├── llm_service.py         # LLM service using Gemini API
-│   ├── multimodal_service.py  # Combined multimodal processing
-│   ├── stt_service.py         # Speech-to-text service
-│   ├── tone_service.py        # Tone analysis service
-│   └── visual_service.py      # Visual processing service
-├── utils/              # Utility functions
-├── main.py             # FastAPI application setup
-static/
-├── webcam.html         # Frontend interface for webcam interaction
-├── styles.css          # Styling for the interface
-└── js/                 # JavaScript for the frontend
-```
-
 ## Troubleshooting
 
 - **No emotions detected**: Ensure good lighting and clear audio
 - **Facial emotion always neutral**: Try different expressions or check lighting
 - **No audio transcription**: Check microphone permissions and audio levels
 - **API key errors**: Verify your API keys in the `.env` file
+- **WebSocket connection issues**: Check if other applications are using port 8000
+- **Model loading errors**: Run `setup_models.py` again to reinstall required models
 
 ## License
 
