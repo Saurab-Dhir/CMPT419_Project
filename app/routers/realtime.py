@@ -605,7 +605,7 @@ async def process_multimodal_data(websocket: WebSocket, client_id: str, session_
         # Log all emotions for debugging
         print(f"🔍 EMOTION SUMMARY - Semantic: {semantic_emotion}, Tonal: {tonal_emotion}, Facial: {facial_emotion}")
 
-        TONE_CLASSIFIER_RELIABILITY = 0.68
+        TONE_CLASSIFIER_RELIABILITY = 0.55
         FACE_CLASSIFIER_RELIABILITY = 0.87
         SEMANTIC_CLASSIFIER_RELIABILITY = 0.85
         tone = Evidence(

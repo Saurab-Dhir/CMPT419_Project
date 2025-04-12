@@ -74,7 +74,7 @@ class MultiModalService:
             if transcription == "(No speech detected)":
                 print("⚠️ Empty transcription detected, proceeding with minimal input")
             
-            TONE_CLASSIFIER_RELIABILITY = 0.68
+            TONE_CLASSIFIER_RELIABILITY = 0.55
             FACE_CLASSIFIER_RELIABILITY = 0.87
             SEMANTIC_CLASSIFIER_RELIABILITY = 0.85
             tone = Evidence(
